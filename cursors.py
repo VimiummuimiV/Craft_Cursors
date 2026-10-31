@@ -202,9 +202,10 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 3.2) -> list[Shape]:
+def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 5.0) -> list[Shape]:
     """Precision crosshair: four long thin arms with an open center, so the pixel under the
-    hotspot stays visible and the cursor does not read as a '+' sign. (cx, cy) is the hotspot."""
+    hotspot stays visible and the cursor does not read as a '+' sign. (cx, cy) is the hotspot.
+    gap must stay above (SW + 2*H)/2 so opposite halos never meet in the middle."""
     d = (f"M{cx - arm} {cy} H{cx - gap} M{cx + gap} {cy} H{cx + arm} "
          f"M{cx} {cy - arm} V{cy - gap} M{cx} {cy + gap} V{cy + arm}")
     return [Shape("path", f'd="{d}"', "line", SW)]
@@ -399,21 +400,21 @@ def preview_html() -> str:
         c_scale = actual_preview_size / GRID
         csw, csh = cw * c_scale, ch * c_scale
         c_stage = f'style="width:{csw:g}px;height:{csh:g}px"'
-        # both themes in large + compact previews
-        theme_blocks = []
+        # both themes in large + compact previews (toggled via toolbar checkboxes)
+        large_blocks = []
         compact_blocks = []
         for th, label in (("dark", "dark"), ("light", "light")):
             svg = build_svg(name, round(scale * GRID), theme=th)
             c_svg = build_svg(name, actual_preview_size, theme=th)
-            theme_blocks.append(
-                f'<div class="theme">'
+            large_blocks.append(
+                f'<div class="theme theme-{th} view-large">'
                 f'<div class="theme-label">{label}</div>'
                 f'<div class="row">'
                 f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}</div></div>'
                 f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}</div></div>'
                 f'</div></div>')
             compact_blocks.append(
-                f'<div class="theme compact-theme">'
+                f'<div class="theme compact-theme theme-{th} view-compact">'
                 f'<div class="theme-label">{label}</div>'
                 f'<div class="row actual-row">'
                 f'<div class="panel actual-panel light">'
@@ -425,12 +426,12 @@ def preview_html() -> str:
         card_min = max(280, int(2 * max(pw, ph) + 28))
         cards.append(
             f'<div class="card" style="min-width:{card_min}px">'
-            f'{"".join(theme_blocks)}'
+            f'{"".join(large_blocks)}'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
             f'<div class="hotspot">hotspot {hx},{hy} · export: {THEME}</div>'
             f'</div>'
-            f'<div class="actual-label">Compact ({actual_preview_size}px)</div>'
+            f'<div class="actual-label view-compact">Compact ({actual_preview_size}px)</div>'
             f'{"".join(compact_blocks)}'
             f'</div>')
     styles = """<style>
@@ -438,6 +439,7 @@ def preview_html() -> str:
 	body {
 		font: 14px 'Segoe UI', Arial, sans-serif;
 		margin: 24px;
+		padding-bottom: 64px;
 		background: #888;
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, max-content));
@@ -523,15 +525,6 @@ def preview_html() -> str:
 		display: block;
 	}
 
-	.actual-stage i {
-		position: absolute;
-		width: 2px;
-		height: 2px;
-		margin: -1px 0 0 -1px;
-		border-radius: 50%;
-		background: #e0245e;
-	}
-
 	.compact-theme {
 		gap: 2px;
 	}
@@ -559,12 +552,79 @@ def preview_html() -> str:
 		color: #2c2c2c;
 		opacity: .8;
 	}
+
+	/* Toolbar — fixed bottom center of the viewport */
+	.toolbar {
+		position: fixed;
+		bottom: 16px;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		gap: 12px 18px;
+		align-items: center;
+		padding: 10px 16px;
+		background: rgba(255, 255, 255, .94);
+		border-radius: 10px;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, .18);
+		font-size: 13px;
+		color: #222;
+		z-index: 100;
+	}
+
+	.toolbar label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		cursor: pointer;
+		user-select: none;
+		white-space: nowrap;
+	}
+
+	.toolbar input {
+		margin: 0;
+	}
+
+	body.hide-large .view-large { display: none !important; }
+	body.hide-compact .view-compact { display: none !important; }
+	body.hide-dark .theme-dark { display: none !important; }
+	body.hide-light .theme-light { display: none !important; }
 </style>"""
-    return "<!doctype html><meta charset=utf-8><title>Cursors</title>" + styles + "".join(cards)
+    toolbar = """
+<div class="toolbar">
+  <label><input type="checkbox" id="tog-large" checked> Large</label>
+  <label><input type="checkbox" id="tog-compact" checked> Compact</label>
+  <label><input type="checkbox" id="tog-dark" checked> dark</label>
+  <label><input type="checkbox" id="tog-light" checked> light</label>
+</div>
+<script>
+(function () {
+  const map = {
+    'tog-large': 'hide-large',
+    'tog-compact': 'hide-compact',
+    'tog-dark': 'hide-dark',
+    'tog-light': 'hide-light',
+  };
+  function sync() {
+    for (const [id, cls] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      document.body.classList.toggle(cls, !el.checked);
+    }
+  }
+  for (const id of Object.keys(map)) {
+    document.getElementById(id).addEventListener('change', sync);
+  }
+  sync();
+})();
+</script>
+"""
+    return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
+            + styles + "".join(cards) + toolbar)
 
 
 def contact_sheet(path: Path) -> None:
-    """Quick-check PNG sheet: pure white/black backgrounds, red dot = hotspot."""
+    """Quick-check PNG sheet: pure white/black backgrounds."""
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
     from PyQt6.QtGui import QColor
     names = list(CURSORS)
@@ -583,12 +643,8 @@ def contact_sheet(path: Path) -> None:
         p.fillRect(x0, y0, panel, panel, QColor("#ffffff"))
         p.fillRect(x0 + panel, y0, panel, panel, QColor("#000000"))
         c = render_image(n, px)
-        hx, hy = hotspot(n, px)
         for bx in (x0 + 8, x0 + panel + 8):
             p.drawImage(bx, y0 + 8, c)
-            p.setBrush(QColor("#e0245e"))
-            p.setPen(Qt.PenStyle.NoPen)
-            p.drawEllipse(bx + hx - 2, y0 + 8 + hy - 2, 5, 5)
     p.end()
     img.save(str(path))
 
