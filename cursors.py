@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import struct
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 # ============================== STYLE ======================================
@@ -42,6 +42,8 @@ class Shape:
       ink   - solid dark form
       line  - dark line with thickness w (symbols +, -, ^, etc.)
     top: drawn above everything else, without a halo (details inside forms)
+    layer: shapes of a higher layer are drawn as a separate group above the lower ones,
+           with their own halo and outline (used for badges)
     """
     el: str
     geom: str
@@ -49,6 +51,7 @@ class Shape:
     w: float = 0.0
     top: bool = False
     xf: str = ""
+    layer: int = 0
 
     def tag(self, attrs: str) -> str:
         t = f' transform="{self.xf}"' if self.xf else ""
@@ -56,6 +59,12 @@ class Shape:
 
 
 def render(shapes: list[Shape]) -> str:
+    """Each layer is drawn completely (halo, outline, fill, details) over the previous one."""
+    layers = sorted({s.layer for s in shapes})
+    return "\n".join(_render_layer([s for s in shapes if s.layer == n]) for n in layers)
+
+
+def _render_layer(shapes: list[Shape]) -> str:
     out: list[str] = []
     # 1) halo
     for s in shapes:
@@ -194,7 +203,9 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-# small icons in the lower right corner; attached to any base cursor with _badged()
+# Badges are standalone small icons in the lower right corner. They are not part of any base
+# cursor: add_badged() puts one on top of any base as a separate layer, so the base keeps its
+# full size and the same badge is reused across tools (pen, selection, ...).
 BADGES = {
     "wave": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", SW)],
     "curve": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", SW)],
@@ -203,10 +214,6 @@ BADGES = {
     "caret": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", SW)],
     "ring": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", SW)],
 }
-
-
-def _badged(base, badge: str):
-    return lambda: base() + BADGES[badge]
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
@@ -219,9 +226,24 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "hand_closed": ((16, 16), hand_closed),
     "pen": ((4, 28), pen_nib),
 }
-for _name, _badge in {"pen_freeform": "wave", "pen_curvature": "curve", "pen_add": "plus",
-                       "pen_delete": "minus", "pen_convert": "caret", "pen_close": "ring"}.items():
-    CURSORS[_name] = ((4, 28), _badged(pen_nib, _badge))
+
+
+def add_badged(name: str, base: str, badge: str) -> None:
+    """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base."""
+    hot, base_factory = CURSORS[base]
+    CURSORS[name] = (hot, lambda: base_factory() + [replace(s, layer=1) for s in BADGES[badge]])
+
+
+for _name, (_base, _badge) in {
+    "pen_freeform": ("pen", "wave"),
+    "pen_curvature": ("pen", "curve"),
+    "pen_add": ("pen", "plus"),
+    "pen_delete": ("pen", "minus"),
+    "pen_convert": ("pen", "caret"),
+    "pen_close": ("pen", "ring"),
+}.items():
+    add_badged(_name, _base, _badge)
+# other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
 # ============================== BUILD ======================================
