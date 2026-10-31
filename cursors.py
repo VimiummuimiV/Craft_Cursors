@@ -234,15 +234,13 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
 
 # Badge origin on the grid per base cursor; DEFAULT is used for bases not listed.
 # The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
-# touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size,
-# so the artboard icon sits right of and below it, outside the 32x32 grid.
+# touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size;
+# the artboard icon is placed further south-east with clear air from the arms (and their halos).
 BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (27.6, 27.6)}
+BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (33.2, 33.2)}
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
 CANVAS: dict[str, tuple[float, float]] = {}
-# Cursors with attached elements are exported to a separate folder: their canvas may differ.
-EXTRAS: set[str] = set()
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
@@ -266,7 +264,6 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     ax, ay = BADGE_ANCHOR.get(base, BADGE_ANCHOR_DEFAULT)
     placed = [replace(s, xf=f"translate({ax} {ay})") for s in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
-    EXTRAS.add(name)
     if canvas:
         CANVAS[name] = canvas
 
@@ -280,7 +277,7 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
-add_badged("artboard", "crosshair", "artboard", canvas=(38, 38))
+add_badged("artboard", "crosshair", "artboard", canvas=(44, 44))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
@@ -383,9 +380,8 @@ def preview_html() -> str:
         # the same scale for every canvas: 3 px per grid unit (big), actual_preview_size / GRID (compact)
         stage = f'style="width:{cw * 3:g}px;height:{ch * 3:g}px"'
         side = max(cw, ch) * actual_preview_size / GRID
-        sub = "extras/" if name in EXTRAS else ""
         actual_image = (
-            f'<img src="{sub}png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
+            f'<img src="png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
         actual_stage = f'style="width:{side:g}px;height:{side:g}px"'
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
         actual_hot = (
@@ -557,28 +553,27 @@ def contact_sheet(path: Path) -> None:
 
 def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
-    # base cursors: out/svg|png|cur, cursors with attached elements: out/extras/svg|png|cur
-    for root in (out, out / "extras"):
-        for d in ("svg", "png", "cur"):
-            (root / d).mkdir(parents=True, exist_ok=True)
+    for d in ("svg", "png", "cur"):
+        (out / d).mkdir(parents=True, exist_ok=True)
     manifest = {}
     for name in CURSORS:
-        root = out / "extras" if name in EXTRAS else out
-        (root / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
+        (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
         entries = []
         for px in CUR_SIZES:
             png = png_bytes(render_image(name, px))
             if px == PNG_SIZE:
-                (root / "png" / f"{name}_{px}.png").write_bytes(png)
+                (out / "png" / f"{name}_{px}.png").write_bytes(png)
             else:
-                stale_png = root / "png" / f"{name}_{px}.png"
+                stale_png = out / "png" / f"{name}_{px}.png"
                 if stale_png.exists():
                     stale_png.unlink()
             hx, hy = hotspot(name, px)
             entries.append((image_side(name, px), hx, hy, png))
-        write_cur(root / "cur" / f"{name}.cur", entries)
-        manifest[name] = {"hotspot_32": CURSORS[name][0], "canvas": canvas_size(name),
-                          "folder": "extras" if name in EXTRAS else "."}
+        write_cur(out / "cur" / f"{name}.cur", entries)
+        manifest[name] = {
+            "hotspot_32": CURSORS[name][0],
+            "canvas": canvas_size(name),
+        }
     (out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (out / "preview.html").write_text(preview_html(), encoding="utf-8")
     contact_sheet(out / "sheet.png")
