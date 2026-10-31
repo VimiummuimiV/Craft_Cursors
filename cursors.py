@@ -292,12 +292,17 @@ def qcursor(name: str, size: int = 32):
 
 def preview_html() -> str:
     cards = []
+    actual_preview_size = 24
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
         svg = build_svg(name, 96)
-        actual_image = f'<img src="png/{name}_{PNG_SIZE}.png" width="32" height="32" alt="">'
+        actual_image = (
+            f'<img src="png/{name}_{PNG_SIZE}.png" '
+            f'width="{actual_preview_size}" height="{actual_preview_size}" alt="">')
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
-        actual_hot = f'<i style="left:{hx}px;top:{hy}px"></i>'
+        actual_hot = (
+            f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
+            f'top:{hy * actual_preview_size / GRID:g}px"></i>')
         cards.append(
             f'<div class="card">'
             f'<div class="row">'
@@ -308,7 +313,7 @@ def preview_html() -> str:
             f'<div class="name">{name}</div>'
             f'<div class="hotspot">hotspot {hx},{hy}</div>'
             f'</div>'
-            f'<div class="actual-label">Actual size (32x32)</div>'
+            f'<div class="actual-label">Compact preview ({actual_preview_size}x{actual_preview_size})</div>'
             f'<div class="row actual-row">'
             f'<div class="panel actual-panel light"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
             f'<div class="panel actual-panel dark"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
@@ -397,21 +402,21 @@ def preview_html() -> str:
 
 	.actual-stage {
 		position: relative;
-		width: 32px;
-		height: 32px;
+		width: 24px;
+		height: 24px;
 	}
 
 	.actual-stage img {
 		display: block;
-		width: 32px;
-		height: 32px;
+		width: 24px;
+		height: 24px;
 		image-rendering: auto;
 	}
 
 	.actual-stage i {
 		position: absolute;
-		width: 3px;
-		height: 3px;
+		width: 2px;
+		height: 2px;
 		margin: -1px 0 0 -1px;
 		border-radius: 50%;
 		background: #e0245e;
