@@ -377,8 +377,11 @@ def preview_html() -> str:
         cw, ch = canvas_size(name)
         scale = large_px_per_unit
         sw, sh = cw * scale, ch * scale
+        pad = 10  # padding inside the coloured panel so the cursor never touches the edge
+        pw, ph = sw + 2 * pad, sh + 2 * pad
         svg = build_svg(name, round(scale * GRID))
         stage = f'style="width:{sw:g}px;height:{sh:g}px"'
+        panel = f'style="width:{pw:g}px;height:{ph:g}px"'
         side = max(cw, ch) * actual_preview_size / GRID
         actual_image = (
             f'<img src="png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
@@ -387,13 +390,13 @@ def preview_html() -> str:
         actual_hot = (
             f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
             f'top:{hy * actual_preview_size / GRID:g}px"></i>')
-        # card min-width follows the larger stage so both panels fit without clipping
-        card_min = max(260, int(2 * max(sw, sh) + 36))
+        # card min-width follows the larger panels so both fit without clipping
+        card_min = max(260, int(2 * max(pw, ph) + 28))
         cards.append(
             f'<div class="card" style="min-width:{card_min}px">'
             f'<div class="row">'
-            f'<div class="panel light"><div class="stage" {stage}>{svg}{hot}</div></div>'
-            f'<div class="panel dark"><div class="stage" {stage}>{svg}{hot}</div></div>'
+            f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
+            f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
             f'</div>'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
@@ -439,9 +442,8 @@ def preview_html() -> str:
 		display: grid;
 		place-items: center;
 		border-radius: 8px;
-		overflow: visible;
+		overflow: hidden;
 		box-sizing: border-box;
-		padding: 6px;
 	}
 
 	/* Light and dark preview backgrounds */
