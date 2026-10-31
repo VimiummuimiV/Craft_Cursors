@@ -395,13 +395,10 @@ def preview_html() -> str:
         pw, ph = sw + 2 * pad, sh + 2 * pad
         stage = f'style="width:{sw:g}px;height:{sh:g}px"'
         panel = f'style="width:{pw:g}px;height:{ph:g}px"'
-        hot = f'<i style="left:{hx * scale:g}px;top:{hy * scale:g}px"></i>'
         # compact: same scale for every canvas, both themes via SVG
         c_scale = actual_preview_size / GRID
         csw, csh = cw * c_scale, ch * c_scale
         c_stage = f'style="width:{csw:g}px;height:{csh:g}px"'
-        c_hot = (
-            f'<i style="left:{hx * c_scale:g}px;top:{hy * c_scale:g}px"></i>')
         # both themes in large + compact previews
         theme_blocks = []
         compact_blocks = []
@@ -412,17 +409,17 @@ def preview_html() -> str:
                 f'<div class="theme">'
                 f'<div class="theme-label">{label}</div>'
                 f'<div class="row">'
-                f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
-                f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
+                f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}</div></div>'
+                f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}</div></div>'
                 f'</div></div>')
             compact_blocks.append(
                 f'<div class="theme compact-theme">'
                 f'<div class="theme-label">{label}</div>'
                 f'<div class="row actual-row">'
                 f'<div class="panel actual-panel light">'
-                f'<div class="actual-stage" {c_stage}>{c_svg}{c_hot}</div></div>'
+                f'<div class="actual-stage" {c_stage}>{c_svg}</div></div>'
                 f'<div class="panel actual-panel dark">'
-                f'<div class="actual-stage" {c_stage}>{c_svg}{c_hot}</div></div>'
+                f'<div class="actual-stage" {c_stage}>{c_svg}</div></div>'
                 f'</div></div>')
         # card min-width follows the larger panels so both fit without clipping
         card_min = max(280, int(2 * max(pw, ph) + 28))
@@ -501,15 +498,6 @@ def preview_html() -> str:
 
 	.stage svg {
 		display: block;
-	}
-
-	.stage i {
-		position: absolute;
-		width: 5px;
-		height: 5px;
-		margin: -2px 0 0 -2px;
-		border-radius: 50%;
-		background: #e0245e;
 	}
 
 	/* Actual-size cursor preview */
