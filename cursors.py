@@ -224,10 +224,10 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
     "crosshair": {
-        # artboard icon, 13.4 x 13.4, centered on its origin
+        # artboard: rounded frame + short header bar (Affinity-like proportions)
         "artboard": [
-            Shape("rect", 'x="-6.7" y="-6.7" width="13.4" height="13.4" rx="1.2"', "paper"),
-            Shape("path", 'd="M-3.5 -2.1 H3.5"', "line", CROSS_W, top=True),
+            Shape("rect", 'x="-7.4" y="-7.4" width="14.8" height="14.8" rx="2.0"', "paper"),
+            Shape("path", 'd="M-3.6 -3.9 H3.6"', "line", CROSS_W, top=True),
         ],
     },
 }
@@ -237,7 +237,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
 # touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size;
 # the artboard icon is placed further south-east with clear air from the arms (and their halos).
 BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (33.2, 33.2)}
+BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (34.0, 34.0)}
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
 CANVAS: dict[str, tuple[float, float]] = {}
@@ -277,7 +277,7 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
-add_badged("artboard", "crosshair", "artboard", canvas=(44, 44))
+add_badged("artboard", "crosshair", "artboard", canvas=(46, 46))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
