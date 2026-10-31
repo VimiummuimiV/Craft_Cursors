@@ -194,15 +194,12 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-CROSS_W = 1.4  # crosshair line thickness: thinner than SW, so it stays precise at 1:1
-
-
 def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 3.2) -> list[Shape]:
     """Precision crosshair: four long thin arms with an open center, so the pixel under the
     hotspot stays visible and the cursor does not read as a '+' sign. (cx, cy) is the hotspot."""
     d = (f"M{cx - arm} {cy} H{cx - gap} M{cx + gap} {cy} H{cx + arm} "
          f"M{cx} {cy - arm} V{cy - gap} M{cx} {cy + gap} V{cy + arm}")
-    return [Shape("path", f'd="{d}"', "line", CROSS_W)]
+    return [Shape("path", f'd="{d}"', "line", SW)]
 
 
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
@@ -227,7 +224,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         # artboard: rounded frame + short header bar (Affinity-like proportions)
         "artboard": [
             Shape("rect", 'x="-7.4" y="-7.4" width="14.8" height="14.8" rx="2.0"', "paper"),
-            Shape("path", 'd="M-3.6 -3.9 H3.6"', "line", CROSS_W, top=True),
+            Shape("path", 'd="M-3.6 -3.9 H3.6"', "line", SW, top=True),
         ],
     },
 }
