@@ -168,6 +168,7 @@ def hand_grab() -> list[Shape]:
 
 
 _NIB_XF = "translate(4.5 28.3) rotate(35)"
+_NIB_SLIT = 11.7  # slit length from the tip; the dot sits at its end
 
 
 def pen_nib() -> list[Shape]:
@@ -176,8 +177,8 @@ def pen_nib() -> list[Shape]:
         Shape("path", 'd="M0 0 L-5.4 -10.5 Q-6 -16 -4.2 -18.2 L4.2 -18.2 Q6 -16 5.4 -10.5 Z"',
               "paper", xf=xf),
         Shape("rect", 'x="-4.2" y="-27.6" width="8.4" height="10.4" rx="1.6"', "ink", xf=xf),
-        Shape("path", 'd="M0 0 V-8.8"', "line", SW, top=True, xf=xf),
-        Shape("circle", 'cx="0" cy="-11.7" r="1.65"', "ink", top=True, xf=xf),
+        Shape("path", f'd="M0 0 V{-_NIB_SLIT}"', "line", SW, top=True, xf=xf),
+        Shape("circle", f'cx="0" cy="{-_NIB_SLIT}" r="1.65"', "ink", top=True, xf=xf),
     ]
 
 
