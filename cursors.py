@@ -295,7 +295,7 @@ def preview_html() -> str:
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
         svg = build_svg(name, 96)
-        actual_svg = build_svg(name)
+        actual_image = f'<img src="png/{name}_{PNG_SIZE}.png" width="32" height="32" alt="">'
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
         actual_hot = f'<i style="left:{hx}px;top:{hy}px"></i>'
         cards.append(
@@ -310,8 +310,8 @@ def preview_html() -> str:
             f'</div>'
             f'<div class="actual-label">Actual size (32x32)</div>'
             f'<div class="row actual-row">'
-            f'<div class="panel actual-panel light"><div class="actual-stage">{actual_svg}{actual_hot}</div></div>'
-            f'<div class="panel actual-panel dark"><div class="actual-stage">{actual_svg}{actual_hot}</div></div>'
+            f'<div class="panel actual-panel light"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
+            f'<div class="panel actual-panel dark"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
             f'</div>'
             f'</div>')
     styles = """<style>
@@ -401,10 +401,11 @@ def preview_html() -> str:
 		height: 32px;
 	}
 
-	.actual-stage svg {
+	.actual-stage img {
 		display: block;
 		width: 32px;
 		height: 32px;
+		image-rendering: auto;
 	}
 
 	.actual-stage i {
