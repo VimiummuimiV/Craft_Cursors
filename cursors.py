@@ -334,7 +334,7 @@ def render_image(name: str, px: int, theme: str | None = None):
     (a bigger canvas stays transparent below/right, so the hotspot position is the same).
     Sizes and the paint rect are integers so the result stays pixel-aligned."""
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
-    from PyQt6.QtCore import QRect
+    from PyQt6.QtCore import QRectF
     cw, ch = canvas_size(name)
     r = QSvgRenderer(QByteArray(build_svg(name, theme=theme).encode("utf-8")))
     side = image_side(name, px)
@@ -342,10 +342,10 @@ def render_image(name: str, px: int, theme: str | None = None):
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    # no SmoothPixmapTransform: we paint SVG directly into an integer rect
+    # integer pixel bounds (QRectF required by the API)
     w = round(cw * px / GRID)
     h = round(ch * px / GRID)
-    r.render(p, QRect(0, 0, w, h))
+    r.render(p, QRectF(0, 0, w, h))
     p.end()
     return img
 
