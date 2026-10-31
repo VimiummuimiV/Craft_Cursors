@@ -203,17 +203,29 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-# Badges are standalone small icons in the lower right corner. They are not part of any base
-# cursor: add_badged() puts one on top of any base as a separate layer, so the base keeps its
-# full size and the same badge is reused across tools (pen, selection, ...).
-BADGES = {
-    "wave": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", SW)],
-    "curve": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", SW)],
-    "plus": [Shape("path", 'd="M21.5 24.5 H27.5 M24.5 21.5 V27.5"', "line", SW)],
-    "minus": [Shape("path", 'd="M21.5 24.5 H27.5"', "line", SW)],
-    "caret": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", SW)],
-    "ring": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", SW)],
+# Corner badges, grouped by tool. Every glyph is drawn once around its own origin (0, 0); where it
+# sits in the corner is set per cursor in BADGE_ANCHOR, so a mark is never duplicated for another base:
+#   "shared" - universal marks (+, -), usable on any cursor;
+#   "<base>" - marks of one tool, so a bulky mark never constrains the others.
+# add_badged() looks in the base's group first, then in "shared".
+BADGES: dict[str, dict[str, list[Shape]]] = {
+    "shared": {
+        "plus": [Shape("path", 'd="M-2.8 0 H2.8 M0 -2.8 V2.8"', "line", SW)],
+        "minus": [Shape("path", 'd="M-2.8 0 H2.8"', "line", SW)],
+    },
+    "pen": {
+        "wave": [Shape("path", 'd="M-3.8 1.4 Q-2.15 -1.4 -0.5 1.4 T2.8 1.4"', "line", SW)],
+        "curve": [Shape("path", 'd="M-4.6 2.8 C-1.4 2.8 -1.4 -3.6 2.8 -3.6"', "line", SW)],
+        "caret": [Shape("path", 'd="M-3 2.6 L0 -1.8 L2.8 2.6"', "line", SW)],
+        "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
+    },
 }
+
+# Badge origin on the 32x32 grid per base cursor; DEFAULT is used for bases not listed.
+# The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
+# touch the nib, and the outer halo stays inside the grid.
+BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
+BADGE_ANCHOR = {"pen": (26.4, 26.4)}
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
@@ -231,7 +243,10 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
 def add_badged(name: str, base: str, badge: str) -> None:
     """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base."""
     hot, base_factory = CURSORS[base]
-    CURSORS[name] = (hot, lambda: base_factory() + [replace(s, layer=1) for s in BADGES[badge]])
+    shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
+    ax, ay = BADGE_ANCHOR.get(base, BADGE_ANCHOR_DEFAULT)
+    placed = [replace(s, layer=1, xf=f"translate({ax} {ay})") for s in shapes]
+    CURSORS[name] = (hot, lambda: base_factory() + placed)
 
 
 for _name, (_base, _badge) in {
