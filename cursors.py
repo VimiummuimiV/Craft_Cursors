@@ -105,8 +105,14 @@ def render(shapes: list[Shape]) -> str:
 # ============================ GEOMETRY ====================================
 
 def arrow() -> list[Shape]:
-    """Default pointer: tailless arrowhead, the tip is the hotspot."""
-    return [Shape("path", 'd="M6 4 L21 17.5 L16.04 18.12 A8 8 0 0 0 10.99 20.82 L6.5 26 Z"', "paper")]
+    """Default pointer: rounded triangle, minimal points (two per corner), the top-left corner is the hotspot."""
+    d = ("M6 5.7 "
+         "C6 3.8 7.7 3.8 8.6 4.6 "          # top-left corner (2 points)
+         "L22.06 16.8 "                     # upper edge
+         "C22.8 17.5 22.6 19 21.7 19.2 "    # right tip (2 points)
+         "C15.7 21.1 11.1 23.8 8.3 26.6 "   # concave lower edge
+         "C7.6 27.3 6 27 6 25.4 Z")         # bottom-left corner (2 points), left edge closes
+    return [Shape("path", f'd="{d}"', "paper")]
 
 
 def zoom(sign: str) -> list[Shape]:
@@ -204,7 +210,7 @@ def _badged(base, badge: str):
 
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
-    "arrow": ((6, 4), arrow),
+    "arrow": ((7, 4), arrow),
     "zoom_in": ((13, 13), lambda: zoom("+")),
     "zoom_out": ((13, 13), lambda: zoom("-")),
     "eyedropper": ((4, 28), eyedropper),
