@@ -295,7 +295,9 @@ def preview_html() -> str:
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
         svg = build_svg(name, 96)
+        actual_svg = build_svg(name)
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
+        actual_hot = f'<i style="left:{hx}px;top:{hy}px"></i>'
         cards.append(
             f'<div class="card">'
             f'<div class="row">'
@@ -306,22 +308,139 @@ def preview_html() -> str:
             f'<div class="name">{name}</div>'
             f'<div class="hotspot">hotspot {hx},{hy}</div>'
             f'</div>'
+            f'<div class="actual-label">Actual size (32x32)</div>'
+            f'<div class="row actual-row">'
+            f'<div class="panel actual-panel light"><div class="actual-stage">{actual_svg}{actual_hot}</div></div>'
+            f'<div class="panel actual-panel dark"><div class="actual-stage">{actual_svg}{actual_hot}</div></div>'
+            f'</div>'
             f'</div>')
-    return ("<!doctype html><meta charset=utf-8><title>Cursors</title><style>"
-            "body{font:14px 'Segoe UI',Arial,sans-serif;margin:24px;background:#888;display:grid;"
-            "grid-template-columns:repeat(auto-fill,230px);gap:16px;align-items:start}"
-            ".card{background:rgba(255,255,255,.18);padding:10px 10px 8px;border-radius:10px;box-sizing:border-box;"
-            "color:#111;display:flex;flex-direction:column;gap:8px;min-height:170px}"
-            ".row{display:grid;grid-template-columns:1fr 1fr;gap:8px}"
-            ".panel{width:100%;aspect-ratio:1;display:grid;place-items:center;border-radius:8px;overflow:hidden;box-sizing:border-box}"
-            ".light{background:#f1f1f1}.dark{background:#262626}"
-            ".stage{position:relative;width:96px;height:96px;display:grid;place-items:center}"
-            ".stage svg{display:block;width:96px;height:96px}"
-            ".stage i{position:absolute;width:5px;height:5px;margin:-2px 0 0 -2px;border-radius:50%;background:#e0245e}"
-            ".meta{display:flex;flex-direction:column;gap:2px;min-width:0}"
-            ".name{font-size:15px;font-weight:600;line-height:1.2;letter-spacing:.01em;color:#111;overflow-wrap:anywhere}"
-            ".hotspot{font-size:12px;line-height:1.2;color:#2c2c2c;opacity:.8}"
-            "</style>" + "".join(cards))
+    styles = """<style>
+	/* Page layout */
+	body {
+		font: 14px 'Segoe UI', Arial, sans-serif;
+		margin: 24px;
+		background: #888;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, 230px);
+		gap: 16px;
+		align-items: start;
+	}
+
+	/* Cursor cards */
+	.card {
+		background: rgba(255, 255, 255, .18);
+		padding: 10px 10px 8px;
+		border-radius: 10px;
+		box-sizing: border-box;
+		color: #111;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+
+	.panel {
+		width: 100%;
+		aspect-ratio: 1;
+		display: grid;
+		place-items: center;
+		border-radius: 8px;
+		overflow: hidden;
+		box-sizing: border-box;
+	}
+
+	/* Light and dark preview backgrounds */
+	.light { background: #f1f1f1; }
+	.dark { background: #262626; }
+
+	/* Enlarged cursor preview */
+	.stage {
+		position: relative;
+		width: 96px;
+		height: 96px;
+		display: grid;
+		place-items: center;
+	}
+
+	.stage svg {
+		display: block;
+		width: 96px;
+		height: 96px;
+	}
+
+	.stage i {
+		position: absolute;
+		width: 5px;
+		height: 5px;
+		margin: -2px 0 0 -2px;
+		border-radius: 50%;
+		background: #e0245e;
+	}
+
+	/* Actual-size cursor preview */
+	.actual-label {
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.2;
+		color: #333;
+	}
+
+	.actual-panel {
+		aspect-ratio: auto;
+		height: 48px;
+	}
+
+	.actual-stage {
+		position: relative;
+		width: 32px;
+		height: 32px;
+	}
+
+	.actual-stage svg {
+		display: block;
+		width: 32px;
+		height: 32px;
+	}
+
+	.actual-stage i {
+		position: absolute;
+		width: 3px;
+		height: 3px;
+		margin: -1px 0 0 -1px;
+		border-radius: 50%;
+		background: #e0245e;
+	}
+
+	/* Cursor name and hotspot metadata */
+	.meta {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	.name {
+		font-size: 15px;
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: .01em;
+		color: #111;
+		overflow-wrap: anywhere;
+	}
+
+	.hotspot {
+		font-size: 12px;
+		line-height: 1.2;
+		color: #2c2c2c;
+		opacity: .8;
+	}
+</style>"""
+    return "<!doctype html><meta charset=utf-8><title>Cursors</title>" + styles + "".join(cards)
 
 
 def contact_sheet(path: Path) -> None:
