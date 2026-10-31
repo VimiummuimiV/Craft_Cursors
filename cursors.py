@@ -104,6 +104,11 @@ def render(shapes: list[Shape]) -> str:
 
 # ============================ GEOMETRY ====================================
 
+def arrow() -> list[Shape]:
+    """Default pointer: tailless arrowhead, the tip is the hotspot."""
+    return [Shape("path", 'd="M6 4 L21 17.5 L16.04 18.12 A8 8 0 0 0 10.99 20.82 L6.5 26 Z"', "paper")]
+
+
 def zoom(sign: str) -> list[Shape]:
     cx = cy = 13
     sh = [
@@ -140,7 +145,7 @@ _HAND_OPEN = (
     "C 29.51 7.94 29.97 9.39 29.43 11.2 C 28.89 13.02 28.42 14.54 27.59 17.08 "
     "C 27.06 18.7 27.21 22.62 25.84 24.99 C 23.12 29.67 22.4 29.79 20.36 29.79 L 14.26 29.79 Z"
 )
-_HAND_GRAB = (
+_HAND_CLOSED = (
     "M 14.26 29.79 C 11.91 29.79 7.78 23.66 7.18 20.2 C 6.89 18.53 10.6 15.77 10.6 15.77 "
     "L 11.25 18.09 C 11.25 18.09 10.65 15.95 10.31 14.69 C 9.97 13.42 9.96 11.89 11.75 11.22 "
     "C 13.03 10.74 14.61 11.59 14.96 12.91 L 14.63 11.63 C 14.41 10.3 15.66 9.12 17.03 9.12 "
@@ -162,47 +167,54 @@ def hand_open() -> list[Shape]:
     return _hand(_HAND_OPEN)
 
 
-def hand_grab() -> list[Shape]:
+def hand_closed() -> list[Shape]:
     """Closed hand: the same cursor, fingers bent."""
-    return _hand(_HAND_GRAB)
+    return _hand(_HAND_CLOSED)
 
 
-_NIB_XF = "translate(4.5 28.3) rotate(35)"
-_NIB_SLIT = 11.7  # slit length from the tip; the dot sits at its end
+_NIB_XF = "translate(3.8 28.2) rotate(45)"
+_NIB_SLIT = 13.14  # slit length from the tip; the dot sits at its end
 
 
 def pen_nib() -> list[Shape]:
     xf = _NIB_XF
     return [
-        Shape("path", 'd="M0 0 L-5.4 -10.5 Q-6 -16 -4.2 -18.2 L4.2 -18.2 Q6 -16 5.4 -10.5 Z"',
+        Shape("path", 'd="M0 0 L-5.4 -11.79 Q-6 -17.97 -4.2 -20.44 L4.2 -20.44 Q6 -17.97 5.4 -11.79 Z"',
               "paper", xf=xf),
-        Shape("rect", 'x="-4.2" y="-27.6" width="8.4" height="10.4" rx="1.6"', "ink", xf=xf),
+        Shape("rect", 'x="-4.2" y="-31" width="8.4" height="11.68" rx="1.6"', "ink", xf=xf),
         Shape("path", f'd="M0 0 V{-_NIB_SLIT}"', "line", SW, top=True, xf=xf),
         Shape("circle", f'cx="0" cy="{-_NIB_SLIT}" r="1.65"', "ink", top=True, xf=xf),
     ]
 
 
-# small icons at the lower right of the pen
+# small icons in the lower right corner; attached to any base cursor with _badged()
 BADGES = {
-    "pen": [],
-    "pen_freeform": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", SW)],
-    "pen_curvature": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", SW)],
-    "pen_add": [Shape("path", 'd="M21.5 24.5 H27.5 M24.5 21.5 V27.5"', "line", SW)],
-    "pen_delete": [Shape("path", 'd="M21.5 24.5 H27.5"', "line", SW)],
-    "pen_convert": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", SW)],
-    "pen_close": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", SW)],
+    "wave": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", SW)],
+    "curve": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", SW)],
+    "plus": [Shape("path", 'd="M21.5 24.5 H27.5 M24.5 21.5 V27.5"', "line", SW)],
+    "minus": [Shape("path", 'd="M21.5 24.5 H27.5"', "line", SW)],
+    "caret": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", SW)],
+    "ring": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", SW)],
 }
+
+
+def _badged(base, badge: str):
+    return lambda: base() + BADGES[badge]
+
 
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
+    "arrow": ((6, 4), arrow),
     "zoom_in": ((13, 13), lambda: zoom("+")),
     "zoom_out": ((13, 13), lambda: zoom("-")),
     "eyedropper": ((4, 28), eyedropper),
     "hand_open": ((16, 16), hand_open),
-    "hand_grab": ((16, 16), hand_grab),
+    "hand_closed": ((16, 16), hand_closed),
+    "pen": ((4, 28), pen_nib),
 }
-for _name, _badge in BADGES.items():
-    CURSORS[_name] = ((4, 28), (lambda b=_badge: pen_nib() + b))
+for _name, _badge in {"pen_freeform": "wave", "pen_curvature": "curve", "pen_add": "plus",
+                       "pen_delete": "minus", "pen_convert": "caret", "pen_close": "ring"}.items():
+    CURSORS[_name] = ((4, 28), _badged(pen_nib, _badge))
 
 
 # ============================== BUILD ======================================
