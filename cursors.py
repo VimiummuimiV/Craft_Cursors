@@ -274,7 +274,7 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
-add_badged("artboard", "crosshair", "artboard", canvas=(44, 44))
+add_badged("artboard", "crosshair", "artboard", canvas=(46, 46))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
