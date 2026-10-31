@@ -232,9 +232,9 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
 # Badge origin on the grid per base cursor; DEFAULT is used for bases not listed.
 # The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
 # touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size;
-# the artboard icon is placed further south-east with clear air from the arms (and their halos).
+# the artboard icon sits further south-east with clear air from the arms (and their halos).
 BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (34.0, 34.0)}
+BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (33.5, 33.5)}
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
 CANVAS: dict[str, tuple[float, float]] = {}
@@ -274,7 +274,7 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
-add_badged("artboard", "crosshair", "artboard", canvas=(46, 46))
+add_badged("artboard", "crosshair", "artboard", canvas=(44, 44))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
@@ -370,22 +370,27 @@ def qcursor(name: str, size: int = 32):
 def preview_html() -> str:
     cards = []
     actual_preview_size = 24
+    # large preview: fixed 3 px per grid unit; panels grow with the canvas (no crop)
+    large_px_per_unit = 3.0
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
         cw, ch = canvas_size(name)
-        svg = build_svg(name, 96)
-        # the same scale for every canvas: 3 px per grid unit (big), actual_preview_size / GRID (compact)
-        stage = f'style="width:{cw * 3:g}px;height:{ch * 3:g}px"'
+        scale = large_px_per_unit
+        sw, sh = cw * scale, ch * scale
+        svg = build_svg(name, round(scale * GRID))
+        stage = f'style="width:{sw:g}px;height:{sh:g}px"'
         side = max(cw, ch) * actual_preview_size / GRID
         actual_image = (
             f'<img src="png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
         actual_stage = f'style="width:{side:g}px;height:{side:g}px"'
-        hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
+        hot = f'<i style="left:{hx * scale:g}px;top:{hy * scale:g}px"></i>'
         actual_hot = (
             f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
             f'top:{hy * actual_preview_size / GRID:g}px"></i>')
+        # card min-width follows the larger stage so both panels fit without clipping
+        card_min = max(260, int(2 * max(sw, sh) + 36))
         cards.append(
-            f'<div class="card">'
+            f'<div class="card" style="min-width:{card_min}px">'
             f'<div class="row">'
             f'<div class="panel light"><div class="stage" {stage}>{svg}{hot}</div></div>'
             f'<div class="panel dark"><div class="stage" {stage}>{svg}{hot}</div></div>'
@@ -407,7 +412,7 @@ def preview_html() -> str:
 		margin: 24px;
 		background: #888;
 		display: grid;
-		grid-template-columns: repeat(auto-fill, 260px);
+		grid-template-columns: repeat(auto-fill, minmax(260px, max-content));
 		gap: 16px;
 		align-items: start;
 	}
@@ -431,13 +436,12 @@ def preview_html() -> str:
 	}
 
 	.panel {
-		width: 100%;
-		aspect-ratio: 1;
 		display: grid;
 		place-items: center;
 		border-radius: 8px;
-		overflow: hidden;
+		overflow: visible;
 		box-sizing: border-box;
+		padding: 6px;
 	}
 
 	/* Light and dark preview backgrounds */
