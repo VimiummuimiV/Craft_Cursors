@@ -330,14 +330,15 @@ def preview_html() -> str:
             f'<div class="bg d"><div class="s">{svg}{hot}</div></div></div>'
             f'<b>{name}</b><small>hotspot {hx},{hy}</small></div>')
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title><style>"
-            "body{font:14px system-ui;margin:24px;background:#888;display:grid;"
+            "body{font:14px 'Sans Serif',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;margin:24px;background:#888;display:grid;"
             "grid-template-columns:repeat(auto-fill,230px);gap:16px}"
-            ".c{background:#fff3;padding:8px;border-radius:8px;color:#111}"
+            ".c{background:#fff3;padding:8px;border-radius:8px;color:#111;display:flex;flex-direction:column;gap:6px;align-items:flex-start}"
             ".row{display:flex}.bg{width:110px;height:110px;display:grid;place-items:center}"
             ".l{background:#f1f1f1}.d{background:#262626}"
             ".s{position:relative;width:96px;height:96px}.s svg{display:block}"
             ".s i{position:absolute;width:5px;height:5px;margin:-2px 0 0 -2px;border-radius:50%;"
-            "background:#e0245e}b{display:block;margin-top:6px}small{opacity:.7}"
+            "background:#e0245e}.c b,.c small{font-family:'Sans Serif',system-ui,-apple-system,'Segoe UI',Arial,sans-serif}"
+            "b{display:block;margin-top:0}small{opacity:.7;display:block}"
             "</style>" + "".join(cards))
 
 
@@ -363,8 +364,6 @@ def contact_sheet(path: Path) -> None:
             p.setBrush(QColor("#e0245e"))
             p.setPen(Qt.PenStyle.NoPen)
             p.drawEllipse(bx + hx - 2, y0 + 7 + hy - 2, 5, 5)
-        p.setPen(QColor("#111111"))
-        p.drawText(x0, y0 + 124, n)
     p.end()
     img.save(str(path))
 
