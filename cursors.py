@@ -326,19 +326,30 @@ def preview_html() -> str:
         svg = build_svg(name, 96)
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
         cards.append(
-            f'<div class="c"><div class="row"><div class="bg l"><div class="s">{svg}{hot}</div></div>'
-            f'<div class="bg d"><div class="s">{svg}{hot}</div></div></div>'
-            f'<b>{name}</b><small>hotspot {hx},{hy}</small></div>')
+            f'<div class="card">'
+            f'<div class="row">'
+            f'<div class="panel light"><div class="stage">{svg}{hot}</div></div>'
+            f'<div class="panel dark"><div class="stage">{svg}{hot}</div></div>'
+            f'</div>'
+            f'<div class="meta">'
+            f'<div class="name">{name}</div>'
+            f'<div class="hotspot">hotspot {hx},{hy}</div>'
+            f'</div>'
+            f'</div>')
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title><style>"
-            "body{font:14px 'Sans Serif',system-ui,-apple-system,'Segoe UI',Arial,sans-serif;margin:24px;background:#888;display:grid;"
-            "grid-template-columns:repeat(auto-fill,230px);gap:16px}"
-            ".c{background:#fff3;padding:8px;border-radius:8px;color:#111;display:flex;flex-direction:column;gap:6px;align-items:flex-start}"
-            ".row{display:flex}.bg{width:110px;height:110px;display:grid;place-items:center}"
-            ".l{background:#f1f1f1}.d{background:#262626}"
-            ".s{position:relative;width:96px;height:96px}.s svg{display:block}"
-            ".s i{position:absolute;width:5px;height:5px;margin:-2px 0 0 -2px;border-radius:50%;"
-            "background:#e0245e}.c b,.c small{font-family:'Sans Serif',system-ui,-apple-system,'Segoe UI',Arial,sans-serif}"
-            "b{display:block;margin-top:0}small{opacity:.7;display:block}"
+            "body{font:14px 'Segoe UI',Arial,sans-serif;margin:24px;background:#888;display:grid;"
+            "grid-template-columns:repeat(auto-fill,230px);gap:16px;align-items:start}"
+            ".card{background:rgba(255,255,255,.18);padding:10px 10px 8px;border-radius:10px;box-sizing:border-box;"
+            "color:#111;display:flex;flex-direction:column;gap:8px;min-height:170px}"
+            ".row{display:grid;grid-template-columns:1fr 1fr;gap:8px}"
+            ".panel{width:100%;aspect-ratio:1;display:grid;place-items:center;border-radius:8px;overflow:hidden;box-sizing:border-box}"
+            ".light{background:#f1f1f1}.dark{background:#262626}"
+            ".stage{position:relative;width:96px;height:96px;display:grid;place-items:center}"
+            ".stage svg{display:block;width:96px;height:96px}"
+            ".stage i{position:absolute;width:5px;height:5px;margin:-2px 0 0 -2px;border-radius:50%;background:#e0245e}"
+            ".meta{display:flex;flex-direction:column;gap:2px;min-width:0}"
+            ".name{font-size:15px;font-weight:600;line-height:1.2;letter-spacing:.01em;color:#111;overflow-wrap:anywhere}"
+            ".hotspot{font-size:12px;line-height:1.2;color:#2c2c2c;opacity:.8}"
             "</style>" + "".join(cards))
 
 
