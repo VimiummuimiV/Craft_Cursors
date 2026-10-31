@@ -42,8 +42,6 @@ class Shape:
       ink   - solid dark form
       line  - dark line with thickness w (symbols +, -, ^, etc.)
     top: drawn above everything else, without a halo (details inside forms)
-    layer: shapes of a higher layer are drawn as a separate group above the lower ones,
-           with their own halo and outline (used for badges)
     """
     el: str
     geom: str
@@ -51,7 +49,6 @@ class Shape:
     w: float = 0.0
     top: bool = False
     xf: str = ""
-    layer: int = 0
 
     def tag(self, attrs: str) -> str:
         t = f' transform="{self.xf}"' if self.xf else ""
@@ -59,12 +56,6 @@ class Shape:
 
 
 def render(shapes: list[Shape]) -> str:
-    """Each layer is drawn completely (halo, outline, fill, details) over the previous one."""
-    layers = sorted({s.layer for s in shapes})
-    return "\n".join(_render_layer([s for s in shapes if s.layer == n]) for n in layers)
-
-
-def _render_layer(shapes: list[Shape]) -> str:
     out: list[str] = []
     # 1) halo
     for s in shapes:
@@ -203,8 +194,21 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-# Corner badges, grouped by tool. Every glyph is drawn once around its own origin (0, 0); where it
-# sits in the corner is set per cursor in BADGE_ANCHOR, so a mark is never duplicated for another base:
+CROSS_W = 1.4  # crosshair line thickness: thinner than SW, so it stays precise at 1:1
+
+
+def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 3.2) -> list[Shape]:
+    """Precision crosshair: four long thin arms with an open center, so the pixel under the
+    hotspot stays visible and the cursor does not read as a '+' sign. (cx, cy) is the hotspot."""
+    d = (f"M{cx - arm} {cy} H{cx - gap} M{cx + gap} {cy} H{cx + arm} "
+         f"M{cx} {cy - arm} V{cy - gap} M{cx} {cy + gap} V{cy + arm}")
+    return [Shape("path", f'd="{d}"', "line", CROSS_W)]
+
+
+# Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
+# If an element does not fit into the base's 32x32 grid, the canvas of that cursor grows to the right
+# and down (the hotspot stays where it was, the origin is the top left corner).
+# Every glyph is drawn once around its own origin (0, 0); where it sits is set per base in BADGE_ANCHOR:
 #   "shared" - universal marks (+, -), usable on any cursor;
 #   "<base>" - marks of one tool, so a bulky mark never constrains the others.
 # add_badged() looks in the base's group first, then in "shared".
@@ -219,13 +223,26 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         "caret": [Shape("path", 'd="M-3 2.6 L0 -1.8 L2.8 2.6"', "line", SW)],
         "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
+    "crosshair": {
+        # artboard icon, 13.4 x 13.4, centered on its origin
+        "artboard": [
+            Shape("rect", 'x="-6.7" y="-6.7" width="13.4" height="13.4" rx="1.2"', "paper"),
+            Shape("path", 'd="M-3.5 -2.1 H3.5"', "line", CROSS_W, top=True),
+        ],
+    },
 }
 
-# Badge origin on the 32x32 grid per base cursor; DEFAULT is used for bases not listed.
+# Badge origin on the grid per base cursor; DEFAULT is used for bases not listed.
 # The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
-# touch the nib, and the outer halo stays inside the grid.
+# touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size,
+# so the artboard icon sits right of and below it, outside the 32x32 grid.
 BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4)}
+BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (27.6, 27.6)}
+
+# Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
+CANVAS: dict[str, tuple[float, float]] = {}
+# Cursors with attached elements are exported to a separate folder: their canvas may differ.
+EXTRAS: set[str] = set()
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
@@ -237,16 +254,21 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "hand_open": ((16, 16), hand_open),
     "hand_closed": ((16, 16), hand_closed),
     "pen": ((4, 28), pen_nib),
+    "crosshair": ((16, 16), crosshair),
 }
 
 
-def add_badged(name: str, base: str, badge: str) -> None:
-    """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base."""
+def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | None = None) -> None:
+    """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base.
+    canvas: size in grid units if the badge goes beyond the base's 32x32 grid."""
     hot, base_factory = CURSORS[base]
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
     ax, ay = BADGE_ANCHOR.get(base, BADGE_ANCHOR_DEFAULT)
-    placed = [replace(s, layer=1, xf=f"translate({ax} {ay})") for s in shapes]
+    placed = [replace(s, xf=f"translate({ax} {ay})") for s in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
+    EXTRAS.add(name)
+    if canvas:
+        CANVAS[name] = canvas
 
 
 for _name, (_base, _badge) in {
@@ -258,16 +280,24 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
+add_badged("artboard", "crosshair", "artboard", canvas=(38, 38))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
+
+
+def canvas_size(name: str) -> tuple[float, float]:
+    return CANVAS.get(name, (GRID, GRID))
 
 
 # ============================== BUILD ======================================
 
 def build_svg(name: str, size: int = GRID) -> str:
+    """size = pixels per GRID units, so the scale is the same for every canvas."""
     hot, factory = CURSORS[name]
+    cw, ch = canvas_size(name)
     body = render(factory())
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-            f'viewBox="0 0 {GRID} {GRID}">\n<!-- hotspot: {hot[0]},{hot[1]} -->\n{body}\n</svg>\n')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{cw * size / GRID:g}" '
+            f'height="{ch * size / GRID:g}" viewBox="0 0 {cw:g} {ch:g}">\n'
+            f'<!-- hotspot: {hot[0]},{hot[1]} -->\n{body}\n</svg>\n')
 
 
 def hotspot(name: str, px: int) -> tuple[int, int]:
@@ -289,16 +319,25 @@ def _qt():
     return QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer
 
 
+def image_side(name: str, px: int) -> int:
+    """Side of the square image: px pixels per GRID units, the larger canvas side decides."""
+    return round(max(canvas_size(name)) * px / GRID)
+
+
 def render_image(name: str, px: int):
-    """Returns a QImage for the cursor at the requested size."""
+    """Returns a square QImage; the cursor sits in its top left corner at px pixels per GRID units
+    (a bigger canvas stays transparent below/right, so the hotspot position is the same)."""
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
+    from PyQt6.QtCore import QRectF
+    cw, ch = canvas_size(name)
     r = QSvgRenderer(QByteArray(build_svg(name).encode("utf-8")))
-    img = QImage(px, px, QImage.Format.Format_ARGB32)
+    side = image_side(name, px)
+    img = QImage(side, side, QImage.Format.Format_ARGB32)
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-    r.render(p)
+    r.render(p, QRectF(0, 0, cw * px / GRID, ch * px / GRID))
     p.end()
     return img
 
@@ -339,10 +378,15 @@ def preview_html() -> str:
     actual_preview_size = 24
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
+        cw, ch = canvas_size(name)
         svg = build_svg(name, 96)
+        # the same scale for every canvas: 3 px per grid unit (big), actual_preview_size / GRID (compact)
+        stage = f'style="width:{cw * 3:g}px;height:{ch * 3:g}px"'
+        side = max(cw, ch) * actual_preview_size / GRID
+        sub = "extras/" if name in EXTRAS else ""
         actual_image = (
-            f'<img src="png/{name}_{PNG_SIZE}.png" '
-            f'width="{actual_preview_size}" height="{actual_preview_size}" alt="">')
+            f'<img src="{sub}png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
+        actual_stage = f'style="width:{side:g}px;height:{side:g}px"'
         hot = f'<i style="left:{hx * 3}px;top:{hy * 3}px"></i>'
         actual_hot = (
             f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
@@ -350,8 +394,8 @@ def preview_html() -> str:
         cards.append(
             f'<div class="card">'
             f'<div class="row">'
-            f'<div class="panel light"><div class="stage">{svg}{hot}</div></div>'
-            f'<div class="panel dark"><div class="stage">{svg}{hot}</div></div>'
+            f'<div class="panel light"><div class="stage" {stage}>{svg}{hot}</div></div>'
+            f'<div class="panel dark"><div class="stage" {stage}>{svg}{hot}</div></div>'
             f'</div>'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
@@ -359,8 +403,8 @@ def preview_html() -> str:
             f'</div>'
             f'<div class="actual-label">Compact preview ({actual_preview_size}x{actual_preview_size})</div>'
             f'<div class="row actual-row">'
-            f'<div class="panel actual-panel light"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
-            f'<div class="panel actual-panel dark"><div class="actual-stage">{actual_image}{actual_hot}</div></div>'
+            f'<div class="panel actual-panel light"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
+            f'<div class="panel actual-panel dark"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
             f'</div>'
             f'</div>')
     styles = """<style>
@@ -370,7 +414,7 @@ def preview_html() -> str:
 		margin: 24px;
 		background: #888;
 		display: grid;
-		grid-template-columns: repeat(auto-fill, 230px);
+		grid-template-columns: repeat(auto-fill, 260px);
 		gap: 16px;
 		align-items: start;
 	}
@@ -408,18 +452,13 @@ def preview_html() -> str:
 	.dark { background: #262626; }
 
 	/* Enlarged cursor preview */
+	/* the size of .stage is set inline from the canvas of each cursor */
 	.stage {
 		position: relative;
-		width: 96px;
-		height: 96px;
-		display: grid;
-		place-items: center;
 	}
 
 	.stage svg {
 		display: block;
-		width: 96px;
-		height: 96px;
 	}
 
 	.stage i {
@@ -446,14 +485,10 @@ def preview_html() -> str:
 
 	.actual-stage {
 		position: relative;
-		width: 24px;
-		height: 24px;
 	}
 
 	.actual-stage img {
 		display: block;
-		width: 24px;
-		height: 24px;
 		image-rendering: auto;
 	}
 
@@ -498,19 +533,20 @@ def contact_sheet(path: Path) -> None:
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
     from PyQt6.QtGui import QColor
     names = list(CURSORS)
-    cols, cell, px = 4, 240, 96
+    cols, px, panel = 4, 96, 124          # panel fits the biggest canvas at the same scale
+    cell, row_h = 2 * panel + 20, panel + 20
     rows = (len(names) + cols - 1) // cols
-    img = QImage(cols * cell, rows * 130, QImage.Format.Format_ARGB32)
+    img = QImage(cols * cell, rows * row_h, QImage.Format.Format_ARGB32)
     img.fill(QColor("#888888"))
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     for i, n in enumerate(names):
-        x0, y0 = (i % cols) * cell + 10, (i // cols) * 130 + 8
-        p.fillRect(x0, y0, 110, 110, QColor("#f1f1f1"))
-        p.fillRect(x0 + 110, y0, 110, 110, QColor("#262626"))
+        x0, y0 = (i % cols) * cell + 10, (i // cols) * row_h + 8
+        p.fillRect(x0, y0, panel, panel, QColor("#f1f1f1"))
+        p.fillRect(x0 + panel, y0, panel, panel, QColor("#262626"))
         c = render_image(n, px)
         hx, hy = hotspot(n, px)
-        for bx in (x0 + 7, x0 + 117):
+        for bx in (x0 + 7, x0 + panel + 7):
             p.drawImage(bx, y0 + 7, c)
             p.setBrush(QColor("#e0245e"))
             p.setPen(Qt.PenStyle.NoPen)
@@ -521,24 +557,28 @@ def contact_sheet(path: Path) -> None:
 
 def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
-    for d in ("svg", "png", "cur"):
-        (out / d).mkdir(parents=True, exist_ok=True)
+    # base cursors: out/svg|png|cur, cursors with attached elements: out/extras/svg|png|cur
+    for root in (out, out / "extras"):
+        for d in ("svg", "png", "cur"):
+            (root / d).mkdir(parents=True, exist_ok=True)
     manifest = {}
     for name in CURSORS:
-        (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
+        root = out / "extras" if name in EXTRAS else out
+        (root / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
         entries = []
         for px in CUR_SIZES:
             png = png_bytes(render_image(name, px))
             if px == PNG_SIZE:
-                (out / "png" / f"{name}_{px}.png").write_bytes(png)
+                (root / "png" / f"{name}_{px}.png").write_bytes(png)
             else:
-                stale_png = out / "png" / f"{name}_{px}.png"
+                stale_png = root / "png" / f"{name}_{px}.png"
                 if stale_png.exists():
                     stale_png.unlink()
             hx, hy = hotspot(name, px)
-            entries.append((px, hx, hy, png))
-        write_cur(out / "cur" / f"{name}.cur", entries)
-        manifest[name] = {"hotspot_32": CURSORS[name][0]}
+            entries.append((image_side(name, px), hx, hy, png))
+        write_cur(root / "cur" / f"{name}.cur", entries)
+        manifest[name] = {"hotspot_32": CURSORS[name][0], "canvas": canvas_size(name),
+                          "folder": "extras" if name in EXTRAS else "."}
     (out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (out / "preview.html").write_text(preview_html(), encoding="utf-8")
     contact_sheet(out / "sheet.png")
