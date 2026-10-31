@@ -22,9 +22,8 @@ GRID = 32            # logical cursor grid
 INK = "#000000"      # outline and dark detail color
 PAPER = "#ffffff"    # fill for light forms
 HALO = "#ffffff"     # halo outside the outline (readable on dark backgrounds)
-SW = 1.2             # outline thickness
+SW = 1.8             # thickness of all outlines and lines
 H = 1.0              # halo width
-LINE_W = 1.8          # thickness of detail lines (hand outline, nib slit, symbols, badges)
 CUR_SIZES = (96,)    # sizes included in .cur files
 PNG_SIZE = max(CUR_SIZES)  # the PNG is exported at the largest .cur size
 # ===========================================================================
@@ -38,6 +37,7 @@ class Shape:
 
     kind:
       paper - light form with a dark outline (closed path, rect, circle)
+      fill  - light form whose outline is a top line drawn over it (folds stay visible)
       pline - thick light line with rounded ends and outline (fingers, thumb)
       ink   - solid dark form
       line  - dark line with thickness w (symbols +, -, ^, etc.)
@@ -87,7 +87,7 @@ def render(shapes: list[Shape]) -> str:
     for s in shapes:
         if s.top:
             continue
-        if s.kind == "paper":
+        if s.kind in ("paper", "fill"):
             out.append(s.tag(f'fill="{PAPER}" stroke="none"'))
         elif s.kind == "pline":
             out.append(s.tag(f'fill="none" stroke="{PAPER}" stroke-width="{s.w}" {ROUND}'))
@@ -109,10 +109,10 @@ def zoom(sign: str) -> list[Shape]:
     sh = [
         Shape("circle", f'cx="{cx}" cy="{cy}" r="8.5"', "paper"),
         Shape("path", 'd="M21 21 L27.5 27.5"', "line", 4.4),
-        Shape("path", f'd="M{cx - 3.8} {cy} H{cx + 3.8}"', "line", LINE_W, top=True),
+        Shape("path", f'd="M{cx - 3.8} {cy} H{cx + 3.8}"', "line", SW, top=True),
     ]
     if sign == "+":
-        sh.append(Shape("path", f'd="M{cx} {cy - 3.8} V{cy + 3.8}"', "line", LINE_W, top=True))
+        sh.append(Shape("path", f'd="M{cx} {cy - 3.8} V{cy + 3.8}"', "line", SW, top=True))
     return sh
 
 
@@ -154,7 +154,7 @@ _HAND_GRAB = (
 
 def _hand(d: str) -> list[Shape]:
     g = f'd="{d}"'
-    return [Shape("path", g, "paper"), Shape("path", g, "line", LINE_W, top=True)]
+    return [Shape("path", g, "fill", SW), Shape("path", g, "line", SW, top=True)]
 
 
 def hand_open() -> list[Shape]:
@@ -176,7 +176,7 @@ def pen_nib() -> list[Shape]:
         Shape("path", 'd="M0 0 L-5.4 -10.5 Q-6 -16 -4.2 -18.2 L4.2 -18.2 Q6 -16 5.4 -10.5 Z"',
               "paper", xf=xf),
         Shape("rect", 'x="-4.2" y="-27.6" width="8.4" height="10.4" rx="1.6"', "ink", xf=xf),
-        Shape("path", 'd="M0 0 V-8.8"', "line", LINE_W, top=True, xf=xf),
+        Shape("path", 'd="M0 0 V-8.8"', "line", SW, top=True, xf=xf),
         Shape("circle", 'cx="0" cy="-11.7" r="1.65"', "ink", top=True, xf=xf),
     ]
 
@@ -184,12 +184,12 @@ def pen_nib() -> list[Shape]:
 # small icons at the lower right of the pen
 BADGES = {
     "pen": [],
-    "pen_freeform": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", LINE_W)],
-    "pen_curvature": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", LINE_W)],
-    "pen_add": [Shape("path", 'd="M21.5 24.5 H27.5 M24.5 21.5 V27.5"', "line", LINE_W)],
-    "pen_delete": [Shape("path", 'd="M21.5 24.5 H27.5"', "line", LINE_W)],
-    "pen_convert": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", LINE_W)],
-    "pen_close": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", LINE_W)],
+    "pen_freeform": [Shape("path", 'd="M20.5 25.5 Q22.5 21.5 24.5 25.5 T28.5 25.5"', "line", SW)],
+    "pen_curvature": [Shape("path", 'd="M21 27.5 C24 27.5 24 22 28 22"', "line", SW)],
+    "pen_add": [Shape("path", 'd="M21.5 24.5 H27.5 M24.5 21.5 V27.5"', "line", SW)],
+    "pen_delete": [Shape("path", 'd="M21.5 24.5 H27.5"', "line", SW)],
+    "pen_convert": [Shape("path", 'd="M21.5 27 L24.5 22 L27.5 27"', "line", SW)],
+    "pen_close": [Shape("circle", 'cx="24.5" cy="24.5" r="2.8"', "line", SW)],
 }
 
 # name -> (hotspot on the 32x32 grid, shape factory)
