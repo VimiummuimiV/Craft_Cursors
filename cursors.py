@@ -396,23 +396,33 @@ def preview_html() -> str:
         stage = f'style="width:{sw:g}px;height:{sh:g}px"'
         panel = f'style="width:{pw:g}px;height:{ph:g}px"'
         hot = f'<i style="left:{hx * scale:g}px;top:{hy * scale:g}px"></i>'
-        side = max(cw, ch) * actual_preview_size / GRID
-        actual_image = (
-            f'<img src="png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
-        actual_stage = f'style="width:{side:g}px;height:{side:g}px"'
-        actual_hot = (
-            f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
-            f'top:{hy * actual_preview_size / GRID:g}px"></i>')
-        # both themes in the large preview
+        # compact: same scale for every canvas, both themes via SVG
+        c_scale = actual_preview_size / GRID
+        csw, csh = cw * c_scale, ch * c_scale
+        c_stage = f'style="width:{csw:g}px;height:{csh:g}px"'
+        c_hot = (
+            f'<i style="left:{hx * c_scale:g}px;top:{hy * c_scale:g}px"></i>')
+        # both themes in large + compact previews
         theme_blocks = []
+        compact_blocks = []
         for th, label in (("dark", "dark"), ("light", "light")):
             svg = build_svg(name, round(scale * GRID), theme=th)
+            c_svg = build_svg(name, actual_preview_size, theme=th)
             theme_blocks.append(
                 f'<div class="theme">'
                 f'<div class="theme-label">{label}</div>'
                 f'<div class="row">'
                 f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
                 f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
+                f'</div></div>')
+            compact_blocks.append(
+                f'<div class="theme compact-theme">'
+                f'<div class="theme-label">{label}</div>'
+                f'<div class="row actual-row">'
+                f'<div class="panel actual-panel light">'
+                f'<div class="actual-stage" {c_stage}>{c_svg}{c_hot}</div></div>'
+                f'<div class="panel actual-panel dark">'
+                f'<div class="actual-stage" {c_stage}>{c_svg}{c_hot}</div></div>'
                 f'</div></div>')
         # card min-width follows the larger panels so both fit without clipping
         card_min = max(280, int(2 * max(pw, ph) + 28))
@@ -423,11 +433,8 @@ def preview_html() -> str:
             f'<div class="name">{name}</div>'
             f'<div class="hotspot">hotspot {hx},{hy} · export: {THEME}</div>'
             f'</div>'
-            f'<div class="actual-label">Compact ({actual_preview_size}px, export theme)</div>'
-            f'<div class="row actual-row">'
-            f'<div class="panel actual-panel light"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
-            f'<div class="panel actual-panel dark"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
-            f'</div>'
+            f'<div class="actual-label">Compact ({actual_preview_size}px)</div>'
+            f'{"".join(compact_blocks)}'
             f'</div>')
     styles = """<style>
 	/* Page layout */
@@ -515,16 +522,17 @@ def preview_html() -> str:
 
 	.actual-panel {
 		aspect-ratio: auto;
-		height: 48px;
+		min-height: 48px;
+		padding: 6px;
 	}
 
 	.actual-stage {
 		position: relative;
 	}
 
+	.actual-stage svg,
 	.actual-stage img {
 		display: block;
-		image-rendering: auto;
 	}
 
 	.actual-stage i {
@@ -534,6 +542,10 @@ def preview_html() -> str:
 		margin: -1px 0 0 -1px;
 		border-radius: 50%;
 		background: #e0245e;
+	}
+
+	.compact-theme {
+		gap: 2px;
 	}
 
 	/* Cursor name and hotspot metadata */
