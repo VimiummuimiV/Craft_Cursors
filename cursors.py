@@ -24,7 +24,8 @@ PAPER = "#ffffff"    # fill for light forms
 HALO = "#ffffff"     # halo outside the outline (readable on dark backgrounds)
 SW = 1.2             # outline thickness
 H = 1.0              # halo width
-SIZES = (32, 48, 64) # sizes included in .cur and PNG outputs
+CUR_SIZES = (96,) # sizes included in .cur files
+PNG_SIZE = 96
 # ===========================================================================
 
 ROUND = 'stroke-linecap="round" stroke-linejoin="round"'
@@ -387,9 +388,14 @@ def main() -> None:
     for name in CURSORS:
         (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
         entries = []
-        for px in SIZES:
+        for px in CUR_SIZES:
             png = png_bytes(render_image(name, px))
-            (out / "png" / f"{name}_{px}.png").write_bytes(png)
+            if px == PNG_SIZE:
+                (out / "png" / f"{name}_{px}.png").write_bytes(png)
+            else:
+                stale_png = out / "png" / f"{name}_{px}.png"
+                if stale_png.exists():
+                    stale_png.unlink()
             hx, hy = hotspot(name, px)
             entries.append((px, hx, hy, png))
         write_cur(out / "cur" / f"{name}.cur", entries)
