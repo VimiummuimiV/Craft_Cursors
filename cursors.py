@@ -4,8 +4,9 @@ Generator for a unified cursor set.
 Usage:   python cursors.py [output_folder]
 Result: svg/, png/, cur/, preview.html, cursors.json
 
-The shared style is controlled by the tokens in the STYLE block. Each cursor is described
-only by geometry on a 32x32 grid, so changing thickness/colors rebuilds the entire set.
+The shared style is controlled by the tokens in the STYLE block (THEME selects dark/light
+palette). Each cursor is described only by geometry on a 32x32 grid, so changing
+thickness/colors rebuilds the entire set.
 
 Dependency for PNG/.cur and preview: PyQt6 (pip install PyQt6)
 """
@@ -19,13 +20,17 @@ from pathlib import Path
 
 # ============================== STYLE ======================================
 GRID = 32            # logical cursor grid
-INK = "#000000"      # outline and dark detail color
-PAPER = "#ffffff"    # fill for light forms
-HALO = "#ffffff"     # halo outside the outline (readable on dark backgrounds)
 SW = 1.8             # thickness of all outlines and lines
 H = 1.8              # halo width
 CUR_SIZES = (96,)    # sizes included in .cur files
 PNG_SIZE = max(CUR_SIZES)  # the PNG is exported at the largest .cur size
+
+# Color themes: "dark" = white outline on black paper (default), "light" = black on white
+THEMES = {
+    "dark":  {"ink": "#ffffff", "paper": "#000000", "halo": "#000000"},
+    "light": {"ink": "#000000", "paper": "#ffffff", "halo": "#ffffff"},
+}
+THEME = "dark"       # default export theme; change to "light" for the inverse
 # ===========================================================================
 
 ROUND = 'stroke-linecap="round" stroke-linejoin="round"'
@@ -55,50 +60,53 @@ class Shape:
         return f"<{self.el} {self.geom} {attrs}{t}/>"
 
 
-def render(shapes: list[Shape]) -> str:
+def render(shapes: list[Shape], theme: str | None = None) -> str:
+    """theme: 'dark' | 'light' | None (= THEME)."""
+    t = THEMES[theme or THEME]
+    ink, paper, halo = t["ink"], t["paper"], t["halo"]
     out: list[str] = []
     # 1) halo
     for s in shapes:
         if s.top:
             continue
         if s.kind == "paper":
-            a = f'fill="{HALO}" stroke="{HALO}" stroke-width="{2 * (SW + H)}" {ROUND}'
+            a = f'fill="{halo}" stroke="{halo}" stroke-width="{2 * (SW + H)}" {ROUND}'
         elif s.kind == "pline":
-            a = f'fill="none" stroke="{HALO}" stroke-width="{s.w + 2 * (SW + H)}" {ROUND}'
+            a = f'fill="none" stroke="{halo}" stroke-width="{s.w + 2 * (SW + H)}" {ROUND}'
         elif s.kind == "ink":
-            a = f'fill="{HALO}" stroke="{HALO}" stroke-width="{2 * H}" {ROUND}'
+            a = f'fill="{halo}" stroke="{halo}" stroke-width="{2 * H}" {ROUND}'
         else:
-            a = f'fill="none" stroke="{HALO}" stroke-width="{s.w + 2 * H}" {ROUND}'
+            a = f'fill="none" stroke="{halo}" stroke-width="{s.w + 2 * H}" {ROUND}'
         out.append(s.tag(a))
     # 2) outline / dark forms
     for s in shapes:
         if s.top:
             continue
         if s.kind == "paper":
-            a = f'fill="{INK}" stroke="{INK}" stroke-width="{2 * SW}" {ROUND}'
+            a = f'fill="{ink}" stroke="{ink}" stroke-width="{2 * SW}" {ROUND}'
         elif s.kind == "pline":
-            a = f'fill="none" stroke="{INK}" stroke-width="{s.w + 2 * SW}" {ROUND}'
+            a = f'fill="none" stroke="{ink}" stroke-width="{s.w + 2 * SW}" {ROUND}'
         elif s.kind == "ink":
-            a = f'fill="{INK}" stroke="none"'
+            a = f'fill="{ink}" stroke="none"'
         else:
-            a = f'fill="none" stroke="{INK}" stroke-width="{s.w}" {ROUND}'
+            a = f'fill="none" stroke="{ink}" stroke-width="{s.w}" {ROUND}'
         out.append(s.tag(a))
     # 3) light fill on top (eraser for internal intersection lines)
     for s in shapes:
         if s.top:
             continue
         if s.kind in ("paper", "fill"):
-            out.append(s.tag(f'fill="{PAPER}" stroke="none"'))
+            out.append(s.tag(f'fill="{paper}" stroke="none"'))
         elif s.kind == "pline":
-            out.append(s.tag(f'fill="none" stroke="{PAPER}" stroke-width="{s.w}" {ROUND}'))
+            out.append(s.tag(f'fill="none" stroke="{paper}" stroke-width="{s.w}" {ROUND}'))
     # 4) top details
     for s in shapes:
         if not s.top:
             continue
         if s.kind == "ink":
-            out.append(s.tag(f'fill="{INK}" stroke="none"'))
+            out.append(s.tag(f'fill="{ink}" stroke="none"'))
         else:
-            out.append(s.tag(f'fill="none" stroke="{INK}" stroke-width="{s.w}" {ROUND}'))
+            out.append(s.tag(f'fill="none" stroke="{ink}" stroke-width="{s.w}" {ROUND}'))
     return "\n".join(out)
 
 
@@ -284,13 +292,16 @@ def canvas_size(name: str) -> tuple[float, float]:
 
 # ============================== BUILD ======================================
 
-def build_svg(name: str, size: int = GRID) -> str:
-    """size = pixels per GRID units, so the scale is the same for every canvas."""
+def build_svg(name: str, size: int = GRID, theme: str | None = None) -> str:
+    """size = pixels per GRID units, so the scale is the same for every canvas.
+    Width/height are integers when size is integer so the rasterizer hits whole pixels."""
     hot, factory = CURSORS[name]
     cw, ch = canvas_size(name)
-    body = render(factory())
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{cw * size / GRID:g}" '
-            f'height="{ch * size / GRID:g}" viewBox="0 0 {cw:g} {ch:g}">\n'
+    body = render(factory(), theme=theme)
+    w = round(cw * size / GRID)
+    h = round(ch * size / GRID)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" '
+            f'viewBox="0 0 {cw:g} {ch:g}" shape-rendering="geometricPrecision">\n'
             f'<!-- hotspot: {hot[0]},{hot[1]} -->\n{body}\n</svg>\n')
 
 
@@ -318,20 +329,23 @@ def image_side(name: str, px: int) -> int:
     return round(max(canvas_size(name)) * px / GRID)
 
 
-def render_image(name: str, px: int):
+def render_image(name: str, px: int, theme: str | None = None):
     """Returns a square QImage; the cursor sits in its top left corner at px pixels per GRID units
-    (a bigger canvas stays transparent below/right, so the hotspot position is the same)."""
+    (a bigger canvas stays transparent below/right, so the hotspot position is the same).
+    Sizes and the paint rect are integers so the result stays pixel-aligned."""
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
-    from PyQt6.QtCore import QRectF
+    from PyQt6.QtCore import QRect
     cw, ch = canvas_size(name)
-    r = QSvgRenderer(QByteArray(build_svg(name).encode("utf-8")))
+    r = QSvgRenderer(QByteArray(build_svg(name, theme=theme).encode("utf-8")))
     side = image_side(name, px)
     img = QImage(side, side, QImage.Format.Format_ARGB32)
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-    r.render(p, QRectF(0, 0, cw * px / GRID, ch * px / GRID))
+    # no SmoothPixmapTransform: we paint SVG directly into an integer rect
+    w = round(cw * px / GRID)
+    h = round(ch * px / GRID)
+    r.render(p, QRect(0, 0, w, h))
     p.end()
     return img
 
@@ -379,30 +393,37 @@ def preview_html() -> str:
         sw, sh = cw * scale, ch * scale
         pad = 10  # padding inside the coloured panel so the cursor never touches the edge
         pw, ph = sw + 2 * pad, sh + 2 * pad
-        svg = build_svg(name, round(scale * GRID))
         stage = f'style="width:{sw:g}px;height:{sh:g}px"'
         panel = f'style="width:{pw:g}px;height:{ph:g}px"'
+        hot = f'<i style="left:{hx * scale:g}px;top:{hy * scale:g}px"></i>'
         side = max(cw, ch) * actual_preview_size / GRID
         actual_image = (
             f'<img src="png/{name}_{PNG_SIZE}.png" width="{side:g}" height="{side:g}" alt="">')
         actual_stage = f'style="width:{side:g}px;height:{side:g}px"'
-        hot = f'<i style="left:{hx * scale:g}px;top:{hy * scale:g}px"></i>'
         actual_hot = (
             f'<i style="left:{hx * actual_preview_size / GRID:g}px;'
             f'top:{hy * actual_preview_size / GRID:g}px"></i>')
+        # both themes in the large preview
+        theme_blocks = []
+        for th, label in (("dark", "dark"), ("light", "light")):
+            svg = build_svg(name, round(scale * GRID), theme=th)
+            theme_blocks.append(
+                f'<div class="theme">'
+                f'<div class="theme-label">{label}</div>'
+                f'<div class="row">'
+                f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
+                f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
+                f'</div></div>')
         # card min-width follows the larger panels so both fit without clipping
-        card_min = max(260, int(2 * max(pw, ph) + 28))
+        card_min = max(280, int(2 * max(pw, ph) + 28))
         cards.append(
             f'<div class="card" style="min-width:{card_min}px">'
-            f'<div class="row">'
-            f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
-            f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}{hot}</div></div>'
-            f'</div>'
+            f'{"".join(theme_blocks)}'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
-            f'<div class="hotspot">hotspot {hx},{hy}</div>'
+            f'<div class="hotspot">hotspot {hx},{hy} · export: {THEME}</div>'
             f'</div>'
-            f'<div class="actual-label">Compact preview ({actual_preview_size}x{actual_preview_size})</div>'
+            f'<div class="actual-label">Compact ({actual_preview_size}px, export theme)</div>'
             f'<div class="row actual-row">'
             f'<div class="panel actual-panel light"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
             f'<div class="panel actual-panel dark"><div class="actual-stage" {actual_stage}>{actual_image}{actual_hot}</div></div>'
@@ -446,9 +467,24 @@ def preview_html() -> str:
 		box-sizing: border-box;
 	}
 
-	/* Light and dark preview backgrounds */
-	.light { background: #f1f1f1; }
-	.dark { background: #262626; }
+	/* Light and dark preview backgrounds — pure palette only */
+	.light { background: #ffffff; }
+	.dark { background: #000000; }
+
+	.theme {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.theme-label {
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: .04em;
+		text-transform: uppercase;
+		color: #333;
+		opacity: .75;
+	}
 
 	/* Enlarged cursor preview */
 	/* the size of .stage is set inline from the canvas of each cursor */
@@ -528,28 +564,31 @@ def preview_html() -> str:
 
 
 def contact_sheet(path: Path) -> None:
-    """Quick-check PNG sheet: light/dark background, red dot = hotspot."""
+    """Quick-check PNG sheet: pure white/black backgrounds, red dot = hotspot."""
     QBuffer, QByteArray, QIODevice, Qt, QImage, QPainter, QSvgRenderer = _qt()
     from PyQt6.QtGui import QColor
     names = list(CURSORS)
-    cols, px, panel = 4, 96, 124          # panel fits the biggest canvas at the same scale
+    cols, px = 4, 96
+    # panel fits the biggest canvas at the same scale + margin
+    max_side = max(image_side(n, px) for n in names)
+    panel = max_side + 16
     cell, row_h = 2 * panel + 20, panel + 20
     rows = (len(names) + cols - 1) // cols
     img = QImage(cols * cell, rows * row_h, QImage.Format.Format_ARGB32)
-    img.fill(QColor("#888888"))
+    img.fill(QColor("#808080"))
     p = QPainter(img)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     for i, n in enumerate(names):
         x0, y0 = (i % cols) * cell + 10, (i // cols) * row_h + 8
-        p.fillRect(x0, y0, panel, panel, QColor("#f1f1f1"))
-        p.fillRect(x0 + panel, y0, panel, panel, QColor("#262626"))
+        p.fillRect(x0, y0, panel, panel, QColor("#ffffff"))
+        p.fillRect(x0 + panel, y0, panel, panel, QColor("#000000"))
         c = render_image(n, px)
         hx, hy = hotspot(n, px)
-        for bx in (x0 + 7, x0 + panel + 7):
-            p.drawImage(bx, y0 + 7, c)
+        for bx in (x0 + 8, x0 + panel + 8):
+            p.drawImage(bx, y0 + 8, c)
             p.setBrush(QColor("#e0245e"))
             p.setPen(Qt.PenStyle.NoPen)
-            p.drawEllipse(bx + hx - 2, y0 + 7 + hy - 2, 5, 5)
+            p.drawEllipse(bx + hx - 2, y0 + 8 + hy - 2, 5, 5)
     p.end()
     img.save(str(path))
 
@@ -577,10 +616,11 @@ def main() -> None:
             "hotspot_32": CURSORS[name][0],
             "canvas": canvas_size(name),
         }
+    manifest["_meta"] = {"theme": THEME, "themes": list(THEMES)}
     (out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     (out / "preview.html").write_text(preview_html(), encoding="utf-8")
     contact_sheet(out / "sheet.png")
-    print(f"ready: {len(CURSORS)} cursors -> {out.resolve()}")
+    print(f"ready: {len(CURSORS)} cursors (theme={THEME}) -> {out.resolve()}")
 
 
 if __name__ == "__main__":
