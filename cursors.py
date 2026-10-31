@@ -23,7 +23,7 @@ INK = "#000000"      # outline and dark detail color
 PAPER = "#ffffff"    # fill for light forms
 HALO = "#ffffff"     # halo outside the outline (readable on dark backgrounds)
 SW = 1.8             # thickness of all outlines and lines
-H = 1.0              # halo width
+H = 1.8              # halo width
 CUR_SIZES = (96,)    # sizes included in .cur files
 PNG_SIZE = max(CUR_SIZES)  # the PNG is exported at the largest .cur size
 # ===========================================================================
@@ -119,7 +119,8 @@ def zoom(sign: str) -> list[Shape]:
     cx = cy = 13
     sh = [
         Shape("circle", f'cx="{cx}" cy="{cy}" r="8.5"', "paper"),
-        Shape("path", 'd="M21 21 L27.5 27.5"', "line", 4.4),
+        # handle: flat end hidden under the lens outline, round end on the far side
+        Shape("path", 'd="M18.16 21.27 L21.27 18.16 L29.06 25.94 A2.2 2.2 0 0 1 25.94 29.06 Z"', "ink"),
         Shape("path", f'd="M{cx - 3.8} {cy} H{cx + 3.8}"', "line", SW, top=True),
     ]
     if sign == "+":
