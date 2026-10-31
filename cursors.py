@@ -24,8 +24,9 @@ PAPER = "#ffffff"    # fill for light forms
 HALO = "#ffffff"     # halo outside the outline (readable on dark backgrounds)
 SW = 1.2             # outline thickness
 H = 1.0              # halo width
-CUR_SIZES = (96,) # sizes included in .cur files
-PNG_SIZE = 96
+HAND_SW = 1.8         # hand outline thickness (finger folds included)
+CUR_SIZES = (96,)    # sizes included in .cur files
+PNG_SIZE = max(CUR_SIZES)  # the PNG is exported at the largest .cur size
 # ===========================================================================
 
 ROUND = 'stroke-linecap="round" stroke-linejoin="round"'
@@ -103,35 +104,6 @@ def render(shapes: list[Shape]) -> str:
 
 # ============================ GEOMETRY ====================================
 
-_ARGS = {"M": 2, "L": 2, "C": 6, "Q": 4, "A": 7}
-
-
-def fit(d: str, s: float, ref: tuple[float, float], to: tuple[float, float] = (16, 16)) -> str:
-    """Scales an absolute path (M L C Q A Z) without changing line thickness.
-    Geometry is drawn in reference "pixel" coordinates; ref is remapped to point to on the 32x32 grid."""
-    import re
-    toks = re.findall(r"[A-Za-z]|-?\d*\.?\d+", d)
-    out: list[str] = []
-    i, cmd = 0, ""
-    f = lambda v: f"{v:.2f}".rstrip("0").rstrip(".")
-    while i < len(toks):
-        if toks[i].isalpha():
-            cmd = toks[i]
-            out.append(cmd)
-            i += 1
-            continue
-        n = _ARGS[cmd]
-        a = [float(v) for v in toks[i:i + n]]
-        i += n
-        if cmd == "A":
-            out.append(" ".join([f(a[0] * s), f(a[1] * s), f(a[2]), f(a[3]), f(a[4]),
-                                 f((a[5] - ref[0]) * s + to[0]), f((a[6] - ref[1]) * s + to[1])]))
-        else:
-            out.append(" ".join(f((v - (ref[0] if k % 2 == 0 else ref[1])) * s + to[k % 2 == 1])
-                                for k, v in enumerate(a)))
-    return " ".join(out)
-
-
 def zoom(sign: str) -> list[Shape]:
     cx = cy = 13
     sh = [
@@ -153,61 +125,46 @@ def eyedropper() -> list[Shape]:
     ]
 
 
-# Hands are drawn in reference coordinates (pixels); fit() remaps them to the 32x32 grid.
-# Open and closed hands are two frames of the same tool: shared palm, wrist,
-# scale, and outline. They differ in the fingers (tip arc centers) and the thumb protrusion.
-_HAND_S, _HAND_REF = 0.060, (207, 283.5)
-_TAIL = "L365 410 C365 465 335 492 290 492 L210 492 C185 492 165 480 150 458 "
-# thumb: extended for the open hand, bent shorter for the grab hand; the base is the same
-_THUMB_OPEN = "L52.6 307.7 A29 29 0 0 1 101.4 276.3 Z"
-_THUMB_GRAB = "L97.5 420.5 A29 29 0 0 1 118 371 Z"
-# contour of the thumb lying across the palm (inner line)
-_THUMB_GRAB_LINE = "M118 371 L205 356 A29 29 0 0 1 205 414 L108 428"
-# arc centers of fingertips: index, middle, ring, pinky
-_TIPS_OPEN = (127.5, 105, 125, 192.5)
-_TIPS_GRAB = (242.5, 227, 240, 262.5)
-# end y-coordinates of separator lines, one per joint
-_SEP_END_OPEN = (275, 285, 292)
-_SEP_END_GRAB = (300, 305, 310)
+# Hands are in 32x32 grid coordinates: the open hand is fitted to the grid with outline and halo,
+# the closed hand has the same scale and anchor (two states of one cursor, so it is not enlarged).
+_HAND_OPEN = (
+    "M 14.26 29.79 C 11.35 29.79 7.93 23.27 5.41 20.82 C 3.97 19.42 1.67 18.92 2.53 16.57 "
+    "C 3.23 14.67 6.18 14.36 8.38 15.76 C 9.97 16.77 11.25 18.09 11.25 18.09 "
+    "C 11.25 18.09 8.77 9.05 8.42 7.73 C 8.07 6.41 8.85 5.07 10.17 4.7 "
+    "C 11.48 4.34 12.82 5 13.21 6.45 C 13.6 7.91 14.96 12.91 14.96 12.91 "
+    "C 14.96 12.91 14.25 6.06 14.13 4.7 C 14 3.35 15.14 2.32 16.5 2.21 "
+    "C 17.75 2.12 19.03 3.33 19.08 4.7 C 19.13 6.07 19.33 12.72 19.33 12.72 "
+    "C 19.33 12.72 20 7.15 20.15 5.79 C 20.31 4.39 21.61 3.68 22.93 3.95 "
+    "C 24.2 4.21 24.88 5.74 24.66 7.09 C 24.46 8.41 23.51 14 23.51 14 "
+    "C 23.51 14 24.78 9.85 25.14 8.72 C 25.55 7.42 27.15 7.04 28.28 7.47 "
+    "C 29.51 7.94 29.97 9.39 29.43 11.2 C 28.89 13.02 28.42 14.54 27.59 17.08 "
+    "C 27.06 18.7 27.21 22.62 25.84 24.99 C 23.12 29.67 22.4 29.79 20.36 29.79 L 14.26 29.79 Z"
+)
+_HAND_GRAB = (
+    "M 14.26 29.79 C 11.91 29.79 7.78 23.66 7.18 20.2 C 6.89 18.53 10.6 15.77 10.6 15.77 "
+    "L 11.25 18.09 C 11.25 18.09 10.65 15.95 10.31 14.69 C 9.97 13.42 9.96 11.89 11.75 11.22 "
+    "C 13.03 10.74 14.61 11.59 14.96 12.91 L 14.63 11.63 C 14.41 10.3 15.66 9.12 17.03 9.12 "
+    "C 18.39 9.12 19.51 10.07 19.51 11.43 L 19.33 12.72 C 19.33 12.72 19.35 12.79 19.51 11.43 "
+    "C 19.66 10.03 21.31 9.33 22.57 9.76 C 23.69 10.13 24.37 11.38 24 12.61 "
+    "C 23.78 13.33 23.51 14 23.51 14 C 23.51 14 24.57 11.58 26.77 12.81 "
+    "C 27.98 13.48 27.93 15.83 27.59 17.08 C 27.14 18.72 27.21 22.62 25.84 24.99 "
+    "C 23.12 29.67 21.42 29.79 20.36 29.79 L 14.26 29.79 Z"
+)
 
 
-def _hand_path(c: tuple, thumb: str) -> str:
-    return (f"M135 335 L135 {c[0]} A27.5 27.5 0 0 1 190 {c[0]} L190 {c[1]} A30 30 0 0 1 250 {c[1]} "
-            f"L250 {c[2]} A30 30 0 0 1 310 {c[2]} L310 {c[3]} A27.5 27.5 0 0 1 365 {c[3]} " + _TAIL + thumb)
-
-
-def _hand_seps(c: tuple, ends: tuple) -> list:
-    # (x, y_from, y_to, side): -1 = fill on the right side of the edge (outline on the left), +1 = opposite
-    return [(190, c[0], ends[0], -1), (250, c[2], ends[1], +1), (310, c[3], ends[2], +1)]
-
-
-def _seps(seps, s: float) -> str:
-    """Separator lines between fingers: shift by half the thickness so they continue the contour."""
-    k = SW / 2 / s
-    up = 0.8 / s  # move slightly above the joint to merge smoothly with the contour without a gap
-    return " ".join(f"M{x + side * k:.2f} {y0 - up:.2f} L{x + side * k:.2f} {y1}"
-                    for x, y0, y1, side in seps)
-
-
-def _hand(tips: tuple, ends: tuple, thumb: str, thumb_line: str = "") -> list[Shape]:
-    s, ref = _HAND_S, _HAND_REF
-    sh = [
-        Shape("path", f'd="{fit(_hand_path(tips, thumb), s, ref)}"', "paper"),
-        Shape("path", f'd="{fit(_seps(_hand_seps(tips, ends), s), s, ref)}"', "line", SW, top=True),
-    ]
-    if thumb_line:
-        sh.append(Shape("path", f'd="{fit(thumb_line, s, ref)}"', "line", SW, top=True))
-    return sh
+def _hand(d: str) -> list[Shape]:
+    g = f'd="{d}"'
+    return [Shape("path", g, "paper"), Shape("path", g, "line", HAND_SW, top=True)]
 
 
 def hand_open() -> list[Shape]:
     """Open hand."""
-    return _hand(_TIPS_OPEN, _SEP_END_OPEN, _THUMB_OPEN)
+    return _hand(_HAND_OPEN)
 
 
 def hand_grab() -> list[Shape]:
-    """Closed hand: same hand shape, fingers bent inward."""
-    return _hand(_TIPS_GRAB, _SEP_END_GRAB, _THUMB_GRAB, _THUMB_GRAB_LINE)
+    """Closed hand: the same cursor, fingers bent."""
+    return _hand(_HAND_GRAB)
 
 
 _NIB_XF = "translate(4.5 28.3) rotate(35)"
