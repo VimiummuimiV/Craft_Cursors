@@ -306,8 +306,8 @@ def knife() -> list[Shape]:
     return [path_shape(blade, "paper", xf=_TOOL_TIP_XF), path_shape(handle, "ink", xf=_TOOL_TIP_XF)]
 
 
-# Magnet: upright horseshoe, poles down; the dot below the pole faces is the hotspot.
-_MAGNET_ORIGIN = (16, 27.6)
+# Magnet: horseshoe and poles sit above the hotspot, matching the other rotated tool cursors.
+_MAGNET_ORIGIN = (10, 22)
 _MAGNET_OUTER = 8.6
 _MAGNET_ARM = 5.2
 _MAGNET_BEND_Y = -14
@@ -315,7 +315,7 @@ _MAGNET_POLE_Y = -3.8        # pole faces
 _MAGNET_POLE_LENGTH = 4.8
 _MAGNET_POLE_GAP = 1         # visible gap between a pole and the body
 _MAGNET_DOT_RADIUS = 1.6
-_MAGNET_XF = f"translate({_MAGNET_ORIGIN[0]} {_MAGNET_ORIGIN[1]})"
+_MAGNET_XF = f"translate({_MAGNET_ORIGIN[0]} {_MAGNET_ORIGIN[1]}) rotate({_TOOL_TIP_ANGLE})"
 
 
 def magnet() -> list[Shape]:
