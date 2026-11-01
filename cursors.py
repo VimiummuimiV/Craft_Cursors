@@ -309,8 +309,7 @@ def artboard() -> list[Shape]:
 _CROP_CENTER = (16, 16)
 _CROP_RING_RADIUS = 6.5
 _CROP_ARM_OUTER_RADIUS = 11.5
-_CROP_CENTER_BACKING_RADIUS = 2.2
-_CROP_CENTER_DOT_RADIUS = 1
+_CROP_CENTER_DOT_RADIUS = 2
 
 
 def crop() -> list[Shape]:
@@ -323,13 +322,11 @@ def crop() -> list[Shape]:
         f"M{center_x} {center_y + inner} V{center_y + outer}",
         f"M{center_x - outer} {center_y} H{center_x - inner}",
     )
-    ring = f'cx="{center_x}" cy="{center_y}" r="{_CROP_RING_RADIUS}"'
-    center_backing = f'cx="{center_x}" cy="{center_y}" r="{_CROP_CENTER_BACKING_RADIUS}"'
+    circle = f'cx="{center_x}" cy="{center_y}" r="{_CROP_RING_RADIUS}"'
     center_dot = f'cx="{center_x}" cy="{center_y}" r="{_CROP_CENTER_DOT_RADIUS}"'
     return [
         path_shape(arms, "line", SW),
-        Shape("circle", ring, "line", SW),
-        Shape("circle", center_backing, "fill"),
+        Shape("circle", circle, "paper"),
         Shape("circle", center_dot, "ink", top=True),
     ]
 
