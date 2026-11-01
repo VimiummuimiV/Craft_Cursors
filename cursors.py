@@ -359,7 +359,7 @@ _SCISSORS_PATH = (
 
 def scissors() -> list[Shape]:
     """Source silhouette recalculated for the default grid and angled like the pen."""
-    return [path_shape(_SCISSORS_PATH, "paper")]
+    return [path_shape(_SCISSORS_PATH, "ink")]
 
 
 # Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
