@@ -306,6 +306,34 @@ def artboard() -> list[Shape]:
     ]
 
 
+_CROP_CENTER = (16, 16)
+_CROP_RING_RADIUS = 6.5
+_CROP_ARM_OUTER_RADIUS = 11.5
+_CROP_CENTER_BACKING_RADIUS = 2.2
+_CROP_CENTER_DOT_RADIUS = 1
+
+
+def crop() -> list[Shape]:
+    """Crop tool target with arms meeting the circular ring."""
+    center_x, center_y = _CROP_CENTER
+    inner, outer = _CROP_RING_RADIUS, _CROP_ARM_OUTER_RADIUS
+    arms = _path(
+        f"M{center_x} {center_y - outer} V{center_y - inner}",
+        f"M{center_x + inner} {center_y} H{center_x + outer}",
+        f"M{center_x} {center_y + inner} V{center_y + outer}",
+        f"M{center_x - outer} {center_y} H{center_x - inner}",
+    )
+    ring = f'cx="{center_x}" cy="{center_y}" r="{_CROP_RING_RADIUS}"'
+    center_backing = f'cx="{center_x}" cy="{center_y}" r="{_CROP_CENTER_BACKING_RADIUS}"'
+    center_dot = f'cx="{center_x}" cy="{center_y}" r="{_CROP_CENTER_DOT_RADIUS}"'
+    return [
+        path_shape(arms, "line", SW),
+        Shape("circle", ring, "line", SW),
+        Shape("circle", center_backing, "fill"),
+        Shape("circle", center_dot, "ink", top=True),
+    ]
+
+
 # Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
 # from the star center and tilted up-left; the star turns with it, one point straight along the stick.
 _WAND_CENTER = (10, 8)      # hotspot: the star center
@@ -416,6 +444,7 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "pen": ((4, 28), pen_nib),
     "crosshair": ((16, 16), crosshair),
     "artboard": ((16, 16), artboard),
+    "crop": (_CROP_CENTER, crop),
     "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
 }
