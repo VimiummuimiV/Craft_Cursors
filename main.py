@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 from cursors import (
+    COMPACT_PREVIEW_SIZE,
     CURSORS,
     CUR_SIZES,
     GRID,
@@ -150,14 +151,16 @@ def main() -> None:
         encoding="utf-8",
     )
     for theme in THEMES:
-        contact_sheet(
-            out / f"sheet_{theme}.png",
-            CURSORS,
-            image_side,
-            render_image,
-            _qt,
-            theme=theme,
-        )
+        for size, px in (("", 96), ("_small", COMPACT_PREVIEW_SIZE)):
+            contact_sheet(
+                out / f"sheet_{theme}{size}.png",
+                CURSORS,
+                image_side,
+                render_image,
+                _qt,
+                theme=theme,
+                px=px,
+            )
     print(f"ready: {len(CURSORS)} cursors (themes={', '.join(THEMES)}) -> {out.resolve()}")
 
 

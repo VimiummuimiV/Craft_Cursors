@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Mapping
 
+from cursors import COMPACT_PREVIEW_SIZE
+
 
 def preview_html(
     cursors: Mapping[str, tuple[tuple[int, int], Callable]],
@@ -13,7 +15,7 @@ def preview_html(
     theme: str,
 ) -> str:
     cards = []
-    actual_preview_size = 28 
+    actual_preview_size = COMPACT_PREVIEW_SIZE
     large_px_per_unit = 2.0
     for name in cursors:
         hx, hy = cursors[name][0]
@@ -352,12 +354,13 @@ def contact_sheet(
     render_image: Callable,
     qt_loader: Callable,
     theme: str | None = None,
+    px: int = 96,
 ) -> None:
     """Render a quick-check sheet on pure white and black backgrounds."""
     _, _, _, Qt, QImage, QPainter, _ = qt_loader()
     from PyQt6.QtGui import QColor
     names = list(cursor_names)
-    cols, px = 4, 96
+    cols = 4
     max_side = max(image_side(name, px) for name in names)
     panel = max_side + 16
     cell, row_h = 2 * panel + 20, panel + 20

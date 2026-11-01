@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 
 # ============================== STYLE ======================================
 GRID = 32            # logical cursor grid
+COMPACT_PREVIEW_SIZE = 28
 SW = 1.8             # thickness of all outlines and lines
 H = 1.8              # halo width
 CUR_SIZES = (96,)    # sizes included in .cur files
