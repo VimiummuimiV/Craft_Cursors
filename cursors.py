@@ -306,6 +306,30 @@ def knife() -> list[Shape]:
     return [path_shape(blade, "paper", xf=_TOOL_TIP_XF), path_shape(handle, "ink", xf=_TOOL_TIP_XF)]
 
 
+# Magnet: upright horseshoe, poles down; the dot below the pole faces is the hotspot.
+_MAGNET_ORIGIN = (16, 27.6)
+_MAGNET_OUTER = 8.6
+_MAGNET_ARM = 5.2
+_MAGNET_BEND_Y = -14
+_MAGNET_POLE_Y = -3.8        # pole faces
+_MAGNET_POLE_LENGTH = 4.8
+_MAGNET_POLE_GAP = 1         # visible gap between a pole and the body
+_MAGNET_DOT_RADIUS = 1.6
+_MAGNET_XF = f"translate({_MAGNET_ORIGIN[0]} {_MAGNET_ORIGIN[1]})"
+
+
+def magnet() -> list[Shape]:
+    outer, inner, bend = _MAGNET_OUTER, _MAGNET_OUTER - _MAGNET_ARM, _MAGNET_BEND_Y
+    pole_top = _MAGNET_POLE_Y - _MAGNET_POLE_LENGTH
+    body_end = pole_top - _MAGNET_POLE_GAP
+    body = _path(f"M{-outer} {body_end} V{bend} A{outer} {outer} 0 0 1 {outer} {bend} V{body_end}",
+                 f"H{inner} V{bend} A{inner} {inner} 0 0 0 {-inner} {bend} V{body_end} Z")
+    poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"', "ink", xf=_MAGNET_XF)
+             for x in (-outer, inner)]
+    dot = Shape("circle", f'cx="0" cy="0" r="{_MAGNET_DOT_RADIUS}"', "ink", xf=_MAGNET_XF)
+    return [path_shape(body, "ink", xf=_MAGNET_XF), *poles, dot]
+
+
 _CANVAS_CENTER = GRID // 2
 
 
@@ -486,6 +510,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "hand_closed": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_CLOSED_PARTS)),
     "pen": (_TOOL_TIP, pen_nib),
     "knife": (_TOOL_TIP, knife),
+    "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
     "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
