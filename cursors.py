@@ -158,18 +158,20 @@ def rounded_polygon(points: list[tuple[float, float]], radius: float | list[floa
     return _path(*segments, "Z")
 
 
-_SPARKLE_INNER_RATIO = 0.4      # inner point radius / outer point radius
-_SPARKLE_ROUNDING_RATIO = 0.16  # corner radius / outer point radius
+_STAR_POINTS = 5
+_STAR_INNER_RATIO = 0.45     # inner point radius / outer point radius
+_STAR_ROUNDING_RATIO = 0.1   # corner radius / outer point radius
 
 
-def sparkle(center_x: float, center_y: float, outer_radius: float) -> str:
-    """Four-point star: 4 outer and 4 inner points, all 8 corners rounded."""
+def star(center_x: float, center_y: float, outer_radius: float, rotation: float = 0) -> str:
+    """Star with _STAR_POINTS outer and as many inner points, all corners rounded.
+    rotation: degrees clockwise, 0 puts one outer point straight up."""
     points = []
-    for index in range(8):
-        radius = outer_radius if index % 2 == 0 else outer_radius * _SPARKLE_INNER_RATIO
-        angle = math.radians(-90 + 45 * index)
+    for index in range(2 * _STAR_POINTS):
+        radius = outer_radius if index % 2 == 0 else outer_radius * _STAR_INNER_RATIO
+        angle = math.radians(-90 + rotation + index * 180 / _STAR_POINTS)
         points.append((center_x + radius * math.cos(angle), center_y + radius * math.sin(angle)))
-    return rounded_polygon(points, outer_radius * _SPARKLE_ROUNDING_RATIO)
+    return rounded_polygon(points, outer_radius * _STAR_ROUNDING_RATIO)
 
 
 def arrow() -> list[Shape]:
@@ -304,27 +306,27 @@ def artboard() -> list[Shape]:
     ]
 
 
-# Magic wand: a stick narrowing towards the hotspot, drawn along the local y axis and tilted up-left,
-# with one sparkle above-left of the hotspot, upright.
-_WAND_TIP = (13, 12)         # hotspot: the top end of the stick
+# Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
+# from the star center and tilted up-left; the star turns with it, one point straight along the stick.
+_WAND_CENTER = (12, 11)      # hotspot: the star center
 _WAND_TILT = 32              # degrees from vertical
-_WAND_TIP_WIDTH = 2.6        # the stick narrows slightly towards the hotspot
+_WAND_STAR_RADIUS = 7.5
+_WAND_TIP_WIDTH = 2.6        # stick width next to the star
 _WAND_HANDLE_WIDTH = 4.2
-_WAND_LENGTH = 18
-_WAND_SPARKLE_OFFSET = (-4.5, -4.5)  # sparkle center relative to the hotspot
-_WAND_SPARKLE_RADIUS = 4.6
+_WAND_LENGTH = 20            # from the star center to the handle end
 
 
 def magic_wand() -> list[Shape]:
-    """Magic wand: tapered stick with a sparkle at its top end."""
-    tip_x, tip_y = _WAND_TIP
-    transform = f"translate({tip_x} {tip_y}) rotate({-_WAND_TILT})"
+    """Magic wand: star on a tapered stick."""
+    center_x, center_y = _WAND_CENTER
+    transform = f"translate({center_x} {center_y}) rotate({-_WAND_TILT})"
+    stick_start = _WAND_STAR_RADIUS * _STAR_INNER_RATIO  # the stick begins in the notch under the star
     tip_half, handle_half = _WAND_TIP_WIDTH / 2, _WAND_HANDLE_WIDTH / 2
-    corners = [(-tip_half, 0), (tip_half, 0), (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
-    outline = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    offset_x, offset_y = _WAND_SPARKLE_OFFSET
-    star = sparkle(tip_x + offset_x, tip_y + offset_y, _WAND_SPARKLE_RADIUS)
-    return [path_shape(star, "ink"), path_shape(outline, "paper", xf=transform)]
+    corners = [(-tip_half, stick_start), (tip_half, stick_start),
+               (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
+    stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
+    wand_star = star(center_x, center_y, _WAND_STAR_RADIUS, -_WAND_TILT)
+    return [path_shape(wand_star, "ink"), path_shape(stick, "paper", xf=transform)]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
@@ -412,7 +414,7 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "pen": ((4, 28), pen_nib),
     "crosshair": ((16, 16), crosshair),
     "artboard": ((16, 16), artboard),
-    "magic_wand": (_WAND_TIP, magic_wand),
+    "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
 }
 
