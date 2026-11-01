@@ -590,13 +590,35 @@ def preview_html() -> str:
 	body.hide-compact .view-compact { display: none !important; }
 	body.hide-dark .theme-dark { display: none !important; }
 	body.hide-light .theme-light { display: none !important; }
-</style>"""
+
+	.toolbar button {
+		font: inherit;
+		padding: 4px 12px;
+		border: 1px solid #bbb;
+		border-radius: 6px;
+		background: #f5f5f5;
+		cursor: pointer;
+		color: #222;
+	}
+
+	.toolbar button:hover {
+		background: #eaeaea;
+	}
+
+	.toolbar button:disabled {
+		opacity: .55;
+		cursor: wait;
+	}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+"""
     toolbar = """
 <div class="toolbar">
   <label><input type="checkbox" id="tog-large" checked> Large</label>
   <label><input type="checkbox" id="tog-compact" checked> Compact</label>
   <label><input type="checkbox" id="tog-dark" checked> dark</label>
   <label><input type="checkbox" id="tog-light" checked> light</label>
+  <button type="button" id="btn-shot" title="Capture visible cards as PNG (multi-page if tall)">Save PNG</button>
 </div>
 <script>
 (function () {
@@ -616,6 +638,64 @@ def preview_html() -> str:
     document.getElementById(id).addEventListener('change', sync);
   }
   sync();
+
+  // Capture visible cards into one or more PNG pages (~A4 landscape height at 2x)
+  const PAGE_H = 1600;
+  const SCALE = 2;
+
+  function downloadCanvas(canvas, name) {
+    const a = document.createElement('a');
+    a.download = name;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  async function capturePages() {
+    const btn = document.getElementById('btn-shot');
+    if (typeof html2canvas !== 'function') {
+      alert('html2canvas failed to load (network / CDN).');
+      return;
+    }
+    btn.disabled = true;
+    const prevText = btn.textContent;
+    btn.textContent = '…';
+    const toolbar = document.querySelector('.toolbar');
+    toolbar.style.visibility = 'hidden';
+    try {
+      const full = await html2canvas(document.body, {
+        backgroundColor: '#888888',
+        scale: SCALE,
+        logging: false,
+        // ignore the toolbar even if visibility flips late
+        ignoreElements: (el) => el.classList && el.classList.contains('toolbar'),
+      });
+      const pageH = Math.min(PAGE_H * SCALE, full.height);
+      if (full.height <= pageH) {
+        downloadCanvas(full, 'cursors-preview.png');
+      } else {
+        let page = 1;
+        for (let y = 0; y < full.height; y += pageH) {
+          const h = Math.min(pageH, full.height - y);
+          const slice = document.createElement('canvas');
+          slice.width = full.width;
+          slice.height = h;
+          slice.getContext('2d').drawImage(
+            full, 0, y, full.width, h, 0, 0, full.width, h);
+          downloadCanvas(slice, 'cursors-preview-' + page + '.png');
+          page += 1;
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Capture failed: ' + err);
+    } finally {
+      toolbar.style.visibility = '';
+      btn.disabled = false;
+      btn.textContent = prevText;
+    }
+  }
+
+  document.getElementById('btn-shot').addEventListener('click', capturePages);
 })();
 </script>
 """
