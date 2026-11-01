@@ -313,7 +313,7 @@ _MAGNET_ARM = 5.2
 _MAGNET_BEND_Y = -14
 _MAGNET_POLE_Y = -3.8        # pole faces
 _MAGNET_POLE_LENGTH = 4.8
-_MAGNET_POLE_GAP = 1         # visible gap between a pole and the body
+_MAGNET_POLE_GAP = SW        # visible gap between a pole and the body
 _MAGNET_DOT_RADIUS = 1.6
 _MAGNET_XF = f"translate({_MAGNET_ORIGIN[0]} {_MAGNET_ORIGIN[1]}) rotate({_TOOL_TIP_ANGLE})"
 
