@@ -328,7 +328,7 @@ def magic_wand() -> list[Shape]:
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
     wand_star = star(center_x, center_y, _WAND_STAR_RADIUS, -_WAND_TILT)
-    return [path_shape(wand_star, "ink"), path_shape(stick, "paper", xf=transform)]
+    return [path_shape(wand_star, "ink"), path_shape(stick, "ink", xf=transform)]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
