@@ -364,8 +364,7 @@ def scissors() -> list[Shape]:
     return [path_shape(_SCISSORS_PATH, "ink", xf=_SCISSORS_XF)]
 
 
-# Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
-# from the star center and tilted up-left; the star turns with it, one point straight along the stick.
+# Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
 _WAND_CENTER = (10, 8)      # hotspot: the star center
 _WAND_STAR_RADIUS = 8.8
 _WAND_TIP_WIDTH = 2.8        # stick width next to the star
@@ -384,8 +383,11 @@ def magic_wand() -> list[Shape]:
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    wand_star = star(center_x, center_y, _WAND_STAR_RADIUS, -_WAND_TILT)
-    return [path_shape(wand_star, "ink"), path_shape(stick, "ink", xf=transform)]
+    wand_star = star(0, 0, _WAND_STAR_RADIUS)
+    return [
+        path_shape(wand_star, "ink", xf=transform),
+        path_shape(stick, "ink", xf=transform),
+    ]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
