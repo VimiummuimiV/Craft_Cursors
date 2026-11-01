@@ -292,16 +292,17 @@ def pen_nib() -> list[Shape]:
 
 # Knife: blade (outlined) sits on the handle (solid); the blade tip is the hotspot, the tip is off the handle axis.
 _KNIFE_SEAM = -17.92         # where the blade ends and the handle starts
-_KNIFE_HANDLE_SIDES = (-3.3, 2.17)
+_KNIFE_SPINE = -2.54         # the blunt upper edge; the handle is flush with its outline
+_KNIFE_HANDLE_WIDTH = 5.47
 _KNIFE_HANDLE_END = -31
-_KNIFE_HANDLE_CORNERS = [0.93, 0.93, 2.74, 2.74]
 
 
 def knife() -> list[Shape]:
-    seam, (side_a, side_b) = _KNIFE_SEAM, _KNIFE_HANDLE_SIDES
-    blade = _path("M0 0", f"Q-3.17 -5.34 -2.54 {seam}", f"L4.31 {seam}", "L3.68 -7.94", "C3.39 -3.48 0 0 0 0", "Z")
+    seam, side_a = _KNIFE_SEAM, _KNIFE_SPINE - SW
+    side_b, end_radius = side_a + _KNIFE_HANDLE_WIDTH, _KNIFE_HANDLE_WIDTH / 2
+    blade = _path("M0 0", f"Q-3.17 -5.34 {_KNIFE_SPINE} {seam}", f"L4.31 {seam}", "L3.68 -7.94", "C3.39 -3.48 0 0 0 0", "Z")
     handle = rounded_polygon([(side_a, seam), (side_b, seam), (side_b, _KNIFE_HANDLE_END), (side_a, _KNIFE_HANDLE_END)],
-                             _KNIFE_HANDLE_CORNERS)
+                             [0, 0, end_radius, end_radius])
     return [path_shape(blade, "paper", xf=_TOOL_TIP_XF), path_shape(handle, "ink", xf=_TOOL_TIP_XF)]
 
 
