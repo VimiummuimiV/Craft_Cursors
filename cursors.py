@@ -435,12 +435,15 @@ def preview_html() -> str:
     # fixed equal card width — packs left, does not stretch with the viewport
     col_w = 260
     styles = f"""<style>
-	/* Page layout — equal columns, equal gaps, no stretch */
 	body {{
 		font: 14px 'Segoe UI', Arial, sans-serif;
-		margin: 24px;
-		padding-bottom: 64px;
+		margin: 0;
+		padding: 24px 24px 80px;
 		background: #888;
+	}}
+
+	/* Cards grid — equal columns, equal gaps, no stretch */
+	.grid {{
 		display: grid;
 		grid-template-columns: repeat(auto-fill, {col_w}px);
 		gap: 16px;
@@ -674,15 +677,12 @@ def preview_html() -> str:
     btn.disabled = true;
     const prevText = btn.textContent;
     btn.textContent = '…';
-    const toolbar = document.querySelector('.toolbar');
-    toolbar.style.visibility = 'hidden';
     try {
-      const full = await html2canvas(document.body, {
+      const target = document.getElementById('grid');
+      const full = await html2canvas(target, {
         backgroundColor: '#888888',
         scale: SCALE,
         logging: false,
-        // ignore the toolbar even if visibility flips late
-        ignoreElements: (el) => el.classList && el.classList.contains('toolbar'),
       });
       const pageH = Math.min(PAGE_H * SCALE, full.height);
       if (full.height <= pageH) {
@@ -704,7 +704,6 @@ def preview_html() -> str:
       console.error(err);
       alert('Capture failed: ' + err);
     } finally {
-      toolbar.style.visibility = '';
       btn.disabled = false;
       btn.textContent = prevText;
     }
@@ -715,7 +714,9 @@ def preview_html() -> str:
 </script>
 """
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
-            + styles + "".join(cards) + toolbar)
+            + styles
+            + '<div id="grid" class="grid">' + "".join(cards) + '</div>'
+            + toolbar)
 
 
 def contact_sheet(path: Path) -> None:
