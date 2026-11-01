@@ -308,12 +308,12 @@ def artboard() -> list[Shape]:
 
 # Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
 # from the star center and tilted up-left; the star turns with it, one point straight along the stick.
-_WAND_CENTER = (12, 11)      # hotspot: the star center
+_WAND_CENTER = (10, 8)      # hotspot: the star center
 _WAND_TILT = 32              # degrees from vertical
 _WAND_STAR_RADIUS = 8.8
 _WAND_TIP_WIDTH = 2.8        # stick width next to the star
 _WAND_HANDLE_WIDTH = 4.6
-_WAND_LENGTH = 18             # from the star center to the handle end
+_WAND_LENGTH = 24             # from the star center to the handle end
 _WAND_STAR_STICK_GAP = 2    # visible gap between the outlined star and stick
 
 
