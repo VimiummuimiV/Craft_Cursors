@@ -208,7 +208,8 @@ def zoom(sign: str) -> list[Shape]:
 
 
 # Eyedropper and pen nib are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees
-_TOOL_TIP_XF = "translate(3.8 28.2) rotate(45)"
+_TOOL_TIP_ANGLE = 45
+_TOOL_TIP_XF = f"translate(3.8 28.2) rotate({_TOOL_TIP_ANGLE})"
 
 
 def eyedropper() -> list[Shape]:
@@ -331,6 +332,37 @@ def crop() -> list[Shape]:
     ]
 
 
+_SCISSORS_HOTSPOT = (9, 23)
+_SCISSORS_SCALE = 0.23
+_SCISSORS_TIP_CENTER = (56.25, 10.0)
+_SCISSORS_XF = (
+    f"translate({_SCISSORS_HOTSPOT[0]} {_SCISSORS_HOTSPOT[1]}) "
+    f"rotate({_TOOL_TIP_ANGLE - 180}) scale({_SCISSORS_SCALE}) "
+    f"translate(-{_SCISSORS_TIP_CENTER[0]} -{_SCISSORS_TIP_CENTER[1]})"
+)
+_SCISSORS_PATH = (
+    "M56.25,74.262l-5.02,8.694c0.879,4.033 0.318,8.394 -1.907,12.247"
+    "c-4.743,8.215 -15.263,11.034 -23.478,6.291c-8.215,-4.743 -11.034,-15.263"
+    " -6.291,-23.478c4.461,-7.727 14.034,-10.68 21.992,-7.057l6.398,-11.082"
+    "l-14.633,-25.346c-8.465,-14.661 1.699,-25.828 1.699,-25.828l21.24,36.788"
+    "l21.24,-36.788c0,0 10.164,11.166 1.699,25.828l-14.633,25.346l6.398,11.082"
+    "c7.958,-3.624 17.531,-0.671 21.992,7.057c4.743,8.215 1.924,18.735"
+    " -6.291,23.478c-8.215,4.743 -18.735,1.924 -23.478,-6.291"
+    "c-2.225,-3.853 -2.786,-8.213 -1.907,-12.247l-5.02,-8.694Zm17.955,5.669"
+    "c-3.686,2.128 -4.951,6.849 -2.823,10.535c2.128,3.686 6.849,4.951"
+    " 10.535,2.823c3.686,-2.128 4.951,-6.849 2.823,-10.535"
+    "c-2.128,-3.686 -6.849,-4.951 -10.535,-2.823Zm-35.91,-0"
+    "c-3.686,-2.128 -8.407,-0.863 -10.535,2.823c-2.128,3.686 -0.863,8.407"
+    " 2.823,10.535c3.686,2.128 8.407,0.863 10.535,-2.823"
+    "c2.128,-3.686 0.863,-8.407 -2.823,-10.535Z"
+)
+
+
+def scissors() -> list[Shape]:
+    """Source silhouette scaled to the default grid and angled like the pen."""
+    return [path_shape(_SCISSORS_PATH, "ink", xf=_SCISSORS_XF)]
+
+
 # Magic wand: a star on top of a stick that narrows towards it. The stick is drawn along the local y axis
 # from the star center and tilted up-left; the star turns with it, one point straight along the stick.
 _WAND_CENTER = (10, 8)      # hotspot: the star center
@@ -442,6 +474,7 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "crosshair": ((16, 16), crosshair),
     "artboard": ((16, 16), artboard),
     "crop": (_CROP_CENTER, crop),
+    "scissors": (_SCISSORS_HOTSPOT, scissors),
     "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
 }
