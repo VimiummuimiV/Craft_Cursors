@@ -203,12 +203,20 @@ def pen_nib() -> list[Shape]:
 
 
 def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 5.0) -> list[Shape]:
-    """Precision crosshair: four long thin arms with an open center, so the pixel under the
-    hotspot stays visible and the cursor does not read as a '+' sign. (cx, cy) is the hotspot.
-    gap must stay above (SW + 2*H)/2 so opposite halos never meet in the middle."""
+    """Precision crosshair with four separate arms and an open center."""
     d = (f"M{cx - arm} {cy} H{cx - gap} M{cx + gap} {cy} H{cx + arm} "
          f"M{cx} {cy - arm} V{cy - gap} M{cx} {cy + gap} V{cy + arm}")
     return [Shape("path", f'd="{d}"', "line", SW)]
+
+
+def artboard() -> list[Shape]:
+    """Artboard cursor with the stepped lower-right frame from the supplied SVG."""
+    outline = "M2.5 16 H11 M21 16 H29.5 V29.5 M16 2.5 V11 M16 21 V29.5 H29.5"
+    detail = "M2.5 16 H11 M16 2.5 V11 M21 16 H29.5 V29.5 H16 V21"
+    return [
+        Shape("path", f'd="{outline}"', "line", SW),
+        Shape("path", f'd="{detail}"', "line", SW, top=True),
+    ]
 
 
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
@@ -229,21 +237,13 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         "caret": [Shape("path", 'd="M-3 2.6 L0 -1.8 L2.8 2.6"', "line", SW)],
         "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
-    "crosshair": {
-        # artboard: rounded frame + short header bar (Affinity-like proportions)
-        "artboard": [
-            Shape("rect", 'x="-7.4" y="-7.4" width="14.8" height="14.8" rx="2.0"', "paper"),
-            Shape("path", 'd="M-3.6 -3.9 H3.6"', "line", SW, top=True),
-        ],
-    },
 }
 
 # Badge origin on the grid per base cursor; DEFAULT is used for bases not listed.
 # The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
-# touch the nib, and the outer halo stays inside the grid. The crosshair keeps its full size;
-# the artboard icon sits further south-east with clear air from the arms (and their halos).
+# touch the nib, and the outer halo stays inside the grid.
 BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4), "crosshair": (33.5, 33.5)}
+BADGE_ANCHOR = {"pen": (26.4, 26.4)}
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
 CANVAS: dict[str, tuple[float, float]] = {}
@@ -259,6 +259,7 @@ CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
     "hand_closed": ((16, 16), hand_closed),
     "pen": ((4, 28), pen_nib),
     "crosshair": ((16, 16), crosshair),
+    "artboard": ((16, 16), artboard),
 }
 
 
@@ -283,7 +284,6 @@ for _name, (_base, _badge) in {
     "pen_close": ("pen", "ring"),
 }.items():
     add_badged(_name, _base, _badge)
-add_badged("artboard", "crosshair", "artboard", canvas=(46, 46))
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
