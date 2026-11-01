@@ -13,7 +13,7 @@ def preview_html(
     theme: str,
 ) -> str:
     cards = []
-    actual_preview_size = 24
+    actual_preview_size = 30
     large_px_per_unit = 2.0
     for name in cursors:
         hx, hy = cursors[name][0]
