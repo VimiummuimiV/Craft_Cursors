@@ -314,7 +314,7 @@ _WAND_STAR_RADIUS = 8.8
 _WAND_TIP_WIDTH = 2.8        # stick width next to the star
 _WAND_HANDLE_WIDTH = 4.6
 _WAND_LENGTH = 24             # from the star center to the handle end
-_WAND_STAR_STICK_GAP = 2    # visible gap between the outlined star and stick
+_WAND_STAR_STICK_GAP = 0    # visible gap between the outlined star and stick
 
 
 def magic_wand() -> list[Shape]:
