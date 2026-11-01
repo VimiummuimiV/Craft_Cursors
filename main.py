@@ -149,8 +149,16 @@ def main() -> None:
         preview_html(CURSORS, canvas_size, build_svg, GRID, THEME),
         encoding="utf-8",
     )
-    contact_sheet(out / "sheet.png", CURSORS, image_side, render_image, _qt)
-    print(f"ready: {len(CURSORS)} cursors (theme={THEME}) -> {out.resolve()}")
+    for theme in THEMES:
+        contact_sheet(
+            out / f"sheet_{theme}.png",
+            CURSORS,
+            image_side,
+            render_image,
+            _qt,
+            theme=theme,
+        )
+    print(f"ready: {len(CURSORS)} cursors (themes={', '.join(THEMES)}) -> {out.resolve()}")
 
 
 if __name__ == "__main__":

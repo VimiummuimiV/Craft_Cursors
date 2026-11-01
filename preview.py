@@ -345,7 +345,14 @@ def preview_html(
             + toolbar)
 
 
-def contact_sheet(path: Path, cursor_names, image_side: Callable, render_image: Callable, qt_loader: Callable) -> None:
+def contact_sheet(
+    path: Path,
+    cursor_names,
+    image_side: Callable,
+    render_image: Callable,
+    qt_loader: Callable,
+    theme: str | None = None,
+) -> None:
     """Render a quick-check sheet on pure white and black backgrounds."""
     _, _, _, Qt, QImage, QPainter, _ = qt_loader()
     from PyQt6.QtGui import QColor
@@ -363,7 +370,7 @@ def contact_sheet(path: Path, cursor_names, image_side: Callable, render_image: 
         x0, y0 = (i % cols) * cell + 10, (i // cols) * row_h + 8
         painter.fillRect(x0, y0, panel, panel, QColor("#ffffff"))
         painter.fillRect(x0 + panel, y0, panel, panel, QColor("#000000"))
-        cursor_image = render_image(name, px)
+        cursor_image = render_image(name, px, theme=theme)
         for x in (x0 + 8, x0 + panel + 8):
             painter.drawImage(x, y0 + 8, cursor_image)
     painter.end()
