@@ -2,249 +2,196 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable
 
-from cursors import COMPACT_PREVIEW_SIZE
+from cursors import COMPACT_PREVIEW_SIZE, CURSORS, GRID, THEME, THEMES, build_svg, canvas_size
 
+LARGE_PIXELS_PER_UNIT = 2
+LARGE_PANEL_PADDING = 10
 
-def preview_html(
-    cursors: Mapping[str, tuple[tuple[int, int], Callable]],
-    canvas_size: Callable[[str], tuple[float, float]],
-    build_svg: Callable[..., str],
-    grid: int,
-    theme: str,
-) -> str:
-    cards = []
-    actual_preview_size = COMPACT_PREVIEW_SIZE
-    large_px_per_unit = 2.0
-    for name in cursors:
-        hx, hy = cursors[name][0]
-        cw, ch = canvas_size(name)
-        scale = large_px_per_unit
-        sw, sh = cw * scale, ch * scale
-        pad = 10
-        pw, ph = sw + 2 * pad, sh + 2 * pad
-        stage = f'style="width:{sw:g}px;height:{sh:g}px"'
-        panel = f'style="width:{pw:g}px;height:{ph:g}px"'
-        c_scale = actual_preview_size / grid
-        csw, csh = cw * c_scale, ch * c_scale
-        c_stage = f'style="width:{csw:g}px;height:{csh:g}px"'
-        large_blocks = []
-        compact_blocks = []
-        for th, label in (("dark", "dark"), ("light", "light")):
-            svg = build_svg(name, round(scale * grid), theme=th)
-            c_svg = build_svg(name, actual_preview_size, theme=th)
-            large_blocks.append(
-                f'<div class="theme theme-{th} view-large">'
-                f'<div class="theme-label">{label}</div>'
-                f'<div class="row">'
-                f'<div class="panel light" {panel}><div class="stage" {stage}>{svg}</div></div>'
-                f'<div class="panel dark" {panel}><div class="stage" {stage}>{svg}</div></div>'
-                f'</div></div>')
-            compact_blocks.append(
-                f'<div class="theme compact-theme theme-{th} view-compact">'
-                f'<div class="theme-label">{label}</div>'
-                f'<div class="row actual-row">'
-                f'<div class="panel actual-panel light">'
-                f'<div class="actual-stage" {c_stage}>{c_svg}</div></div>'
-                f'<div class="panel actual-panel dark">'
-                f'<div class="actual-stage" {c_stage}>{c_svg}</div></div>'
-                f'</div></div>')
-        cards.append(
-            f'<div class="card">'
-            f'{"".join(large_blocks)}'
-            f'<div class="meta">'
-            f'<div class="name">{name}</div>'
-            f'<div class="hotspot">hotspot {hx},{hy} · export: {theme}</div>'
-            f'</div>'
-            f'<div class="actual-label view-compact">Compact ({actual_preview_size}px)</div>'
-            f'{"".join(compact_blocks)}'
-            f'</div>')
+PREVIEW_STYLES = """<style>
+    body {
+        font: 14px 'Segoe UI', Arial, sans-serif;
+        margin: 0;
+        padding: 24px 24px 80px;
+        background: #888;
+    }
 
-    col_w = 260
-    styles = f"""<style>
-	body {{
-		font: 14px 'Segoe UI', Arial, sans-serif;
-		margin: 0;
-		padding: 24px 24px 80px;
-		background: #888;
-	}}
+    /* Cards grid — equal columns, equal gaps, no stretch */
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 260px);
+        gap: 16px;
+        justify-content: start;
+        align-items: start;
+    }
 
-	/* Cards grid — equal columns, equal gaps, no stretch */
-	.grid {{
-		display: grid;
-		grid-template-columns: repeat(auto-fill, {col_w}px);
-		gap: 16px;
-		justify-content: start;
-		align-items: start;
-	}}
+    .card {
+        background: rgba(255, 255, 255, .18);
+        padding: 10px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        color: #111;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 100%;
+        min-width: 0;
+    }
 
-	.card {{
-		background: rgba(255, 255, 255, .18);
-		padding: 10px;
-		border-radius: 10px;
-		box-sizing: border-box;
-		color: #111;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		width: 100%;
-		min-width: 0;
-	}}
+    .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
 
-	.row {{
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-	}}
+    .panel {
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        overflow: hidden;
+        box-sizing: border-box;
+        width: 100%;
+    }
 
-	.panel {{
-		display: grid;
-		place-items: center;
-		border-radius: 8px;
-		overflow: hidden;
-		box-sizing: border-box;
-		width: 100%;
-	}}
+    .light { background: #ffffff; }
+    .dark { background: #000000; }
 
-	.light {{ background: #ffffff; }}
-	.dark {{ background: #000000; }}
+    .theme {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
 
-	.theme {{
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}}
+    .theme-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: #333;
+        opacity: .75;
+    }
 
-	.theme-label {{
-		font-size: 11px;
-		font-weight: 600;
-		letter-spacing: .04em;
-		text-transform: uppercase;
-		color: #333;
-		opacity: .75;
-	}}
+    .stage {
+        position: relative;
+        max-width: 100%;
+    }
 
-	.stage {{
-		position: relative;
-		max-width: 100%;
-	}}
+    .stage svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
 
-	.stage svg {{
-		display: block;
-		max-width: 100%;
-		height: auto;
-	}}
+    .actual-label {
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.2;
+        color: #333;
+    }
 
-	.actual-label {{
-		font-size: 12px;
-		font-weight: 600;
-		line-height: 1.2;
-		color: #333;
-	}}
+    .actual-panel {
+        min-height: 48px;
+        padding: 6px;
+    }
 
-	.actual-panel {{
-		min-height: 48px;
-		padding: 6px;
-	}}
+    .actual-stage {
+        position: relative;
+    }
 
-	.actual-stage {{
-		position: relative;
-	}}
+    .actual-stage svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
+    }
 
-	.actual-stage svg,
-	.actual-stage img {{
-		display: block;
-		max-width: 100%;
-		height: auto;
-	}}
+    .compact-theme {
+        gap: 2px;
+    }
 
-	.compact-theme {{
-		gap: 2px;
-	}}
+    .meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
 
-	.meta {{
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-	}}
+    .name {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: .01em;
+        color: #111;
+        overflow-wrap: anywhere;
+    }
 
-	.name {{
-		font-size: 15px;
-		font-weight: 600;
-		line-height: 1.2;
-		letter-spacing: .01em;
-		color: #111;
-		overflow-wrap: anywhere;
-	}}
+    .hotspot {
+        font-size: 12px;
+        line-height: 1.2;
+        color: #2c2c2c;
+        opacity: .8;
+    }
 
-	.hotspot {{
-		font-size: 12px;
-		line-height: 1.2;
-		color: #2c2c2c;
-		opacity: .8;
-	}}
+    .toolbar {
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 12px 18px;
+        align-items: center;
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, .94);
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, .18);
+        font-size: 13px;
+        color: #222;
+        z-index: 100;
+    }
 
-	.toolbar {{
-		position: fixed;
-		bottom: 16px;
-		left: 50%;
-		transform: translateX(-50%);
-		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		gap: 12px 18px;
-		align-items: center;
-		padding: 10px 16px;
-		background: rgba(255, 255, 255, .94);
-		border-radius: 10px;
-		box-shadow: 0 4px 20px rgba(0, 0, 0, .18);
-		font-size: 13px;
-		color: #222;
-		z-index: 100;
-	}}
+    .toolbar label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+    }
 
-	.toolbar label {{
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		cursor: pointer;
-		user-select: none;
-		white-space: nowrap;
-	}}
+    .toolbar input {
+        margin: 0;
+    }
 
-	.toolbar input {{
-		margin: 0;
-	}}
+    body.hide-large .view-large { display: none !important; }
+    body.hide-compact .view-compact { display: none !important; }
+    body.hide-dark .theme-dark { display: none !important; }
+    body.hide-light .theme-light { display: none !important; }
 
-	body.hide-large .view-large {{ display: none !important; }}
-	body.hide-compact .view-compact {{ display: none !important; }}
-	body.hide-dark .theme-dark {{ display: none !important; }}
-	body.hide-light .theme-light {{ display: none !important; }}
+    .toolbar button {
+        font: inherit;
+        padding: 4px 12px;
+        border: 1px solid #bbb;
+        border-radius: 6px;
+        background: #f5f5f5;
+        cursor: pointer;
+        color: #222;
+    }
 
-	.toolbar button {{
-		font: inherit;
-		padding: 4px 12px;
-		border: 1px solid #bbb;
-		border-radius: 6px;
-		background: #f5f5f5;
-		cursor: pointer;
-		color: #222;
-	}}
+    .toolbar button:hover {
+        background: #eaeaea;
+    }
 
-	.toolbar button:hover {{
-		background: #eaeaea;
-	}}
-
-	.toolbar button:disabled {{
-		opacity: .55;
-		cursor: wait;
-	}}
+    .toolbar button:disabled {
+        opacity: .55;
+        cursor: wait;
+    }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 """
-    toolbar = """
+
+PREVIEW_TOOLBAR = """
 <div class="toolbar">
   <label><input type="checkbox" id="tog-large" checked> Large</label>
   <label><input type="checkbox" id="tog-compact" checked> Compact</label>
@@ -341,40 +288,81 @@ def preview_html(
 })();
 </script>
 """
+
+
+def _theme_block(theme: str, svg: str, stage_style: str, compact: bool, panel_style: str = "") -> str:
+    """One theme row: the cursor on a light and a dark panel."""
+    view = "compact" if compact else "large"
+    theme_class = "theme compact-theme" if compact else "theme"
+    panel_class = "panel actual-panel" if compact else "panel"
+    stage_class = "actual-stage" if compact else "stage"
+    panels = "".join(
+        f'<div class="{panel_class} {background}"{panel_style}>'
+        f'<div class="{stage_class}" {stage_style}>{svg}</div></div>'
+        for background in ("light", "dark"))
+    return (f'<div class="{theme_class} theme-{theme} view-{view}">'
+            f'<div class="theme-label">{theme}</div>'
+            f'<div class="row">{panels}</div></div>')
+
+
+def _card(name: str) -> str:
+    hotspot_x, hotspot_y = CURSORS[name][0]
+    canvas_width, canvas_height = canvas_size(name)
+    stage_width, stage_height = canvas_width * LARGE_PIXELS_PER_UNIT, canvas_height * LARGE_PIXELS_PER_UNIT
+    panel_style = (f' style="width:{stage_width + 2 * LARGE_PANEL_PADDING:g}px;'
+                   f'height:{stage_height + 2 * LARGE_PANEL_PADDING:g}px"')
+    large_stage = f'style="width:{stage_width:g}px;height:{stage_height:g}px"'
+    compact_scale = COMPACT_PREVIEW_SIZE / GRID
+    compact_stage = f'style="width:{canvas_width * compact_scale:g}px;height:{canvas_height * compact_scale:g}px"'
+    large_blocks = [
+        _theme_block(theme, build_svg(name, LARGE_PIXELS_PER_UNIT * GRID, theme=theme),
+                     large_stage, compact=False, panel_style=panel_style)
+        for theme in THEMES]
+    compact_blocks = [
+        _theme_block(theme, build_svg(name, COMPACT_PREVIEW_SIZE, theme=theme), compact_stage, compact=True)
+        for theme in THEMES]
+    return (f'<div class="card">'
+            f'{"".join(large_blocks)}'
+            f'<div class="meta">'
+            f'<div class="name">{name}</div>'
+            f'<div class="hotspot">hotspot {hotspot_x:g},{hotspot_y:g} · export: {THEME}</div>'
+            f'</div>'
+            f'<div class="actual-label view-compact">Compact ({COMPACT_PREVIEW_SIZE}px)</div>'
+            f'{"".join(compact_blocks)}'
+            f'</div>')
+
+
+def preview_html() -> str:
+    cards = "".join(_card(name) for name in CURSORS)
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
-            + styles
-            + '<div id="grid" class="grid">' + "".join(cards) + '</div>'
-            + toolbar)
+            + PREVIEW_STYLES
+            + f'<div id="grid" class="grid">{cards}</div>'
+            + PREVIEW_TOOLBAR)
 
 
 def contact_sheet(
     path: Path,
-    cursor_names,
     image_side: Callable,
     render_image: Callable,
-    qt_loader: Callable,
     theme: str | None = None,
-    px: int = 96,
+    pixels_per_unit: int = 96,
 ) -> None:
     """Render a quick-check sheet on pure white and black backgrounds."""
-    _, _, _, Qt, QImage, QPainter, _ = qt_loader()
-    from PyQt6.QtGui import QColor
-    names = list(cursor_names)
-    cols = 4
-    max_side = max(image_side(name, px) for name in names)
-    panel = max_side + 16
-    cell, row_h = 2 * panel + 20, panel + 20
-    rows = (len(names) + cols - 1) // cols
-    img = QImage(cols * cell, rows * row_h, QImage.Format.Format_ARGB32)
-    img.fill(QColor("#808080"))
-    painter = QPainter(img)
+    from PyQt6.QtGui import QColor, QImage, QPainter
+    columns = 4
+    panel = max(image_side(name, pixels_per_unit) for name in CURSORS) + 16
+    cell_width, row_height = 2 * panel + 20, panel + 20
+    rows = (len(CURSORS) + columns - 1) // columns
+    sheet = QImage(columns * cell_width, rows * row_height, QImage.Format.Format_ARGB32)
+    sheet.fill(QColor("#808080"))
+    painter = QPainter(sheet)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    for i, name in enumerate(names):
-        x0, y0 = (i % cols) * cell + 10, (i // cols) * row_h + 8
-        painter.fillRect(x0, y0, panel, panel, QColor("#ffffff"))
-        painter.fillRect(x0 + panel, y0, panel, panel, QColor("#000000"))
-        cursor_image = render_image(name, px, theme=theme)
-        for x in (x0 + 8, x0 + panel + 8):
-            painter.drawImage(x, y0 + 8, cursor_image)
+    for index, name in enumerate(CURSORS):
+        left, top = (index % columns) * cell_width + 10, (index // columns) * row_height + 8
+        painter.fillRect(left, top, panel, panel, QColor("#ffffff"))
+        painter.fillRect(left + panel, top, panel, panel, QColor("#000000"))
+        cursor_image = render_image(name, pixels_per_unit, theme=theme)
+        for x in (left + 8, left + panel + 8):
+            painter.drawImage(x, top + 8, cursor_image)
     painter.end()
-    img.save(str(path))
+    sheet.save(str(path))

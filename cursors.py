@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, replace
+from typing import Callable
 
 # ============================== STYLE ======================================
 GRID = 32            # logical cursor grid
@@ -11,6 +13,15 @@ SW = 1.8             # thickness of all outlines and lines
 H = 1.8              # halo width
 CUR_SIZES = (96,)    # sizes included in .cur files
 PNG_SIZE = max(CUR_SIZES)  # the PNG is exported at the largest .cur size
+
+# Allowed region: every cursor, halo included, stays at least PADDING away from all four canvas edges.
+# Shapes derived from the constants below follow PADDING automatically; hand-drawn geometry
+# (hands, arrow, scissors, wand, bucket) is verified by check_padding() in main.py.
+PADDING = 1.0
+LINE_REACH = SW / 2 + H            # how far a line's halo sticks out past its centerline
+PAPER_REACH = SW + H               # same for outlined forms (stroke on both sides of the edge)
+LINE_INSET = PADDING + LINE_REACH  # nearest a line's centerline may get to a canvas edge
+LINE_FAR_EDGE = GRID - LINE_INSET  # farthest a line's centerline may reach
 
 # Color themes: "dark" = white outline on black paper (default), "light" = black on white
 THEMES = {
@@ -47,53 +58,52 @@ class Shape:
         return f"<{self.el} {self.geom} {attrs}{t}/>"
 
 
+def _stroke(color: str, width: float, fill: str = "none") -> str:
+    return f'fill="{fill}" stroke="{color}" stroke-width="{width}" {ROUND}'
+
+
+def _flat(color: str) -> str:
+    return f'fill="{color}" stroke="none"'
+
+
 def render(shapes: list[Shape], theme: str | None = None) -> str:
     """theme: 'dark' | 'light' | None (= THEME)."""
-    t = THEMES[theme or THEME]
-    ink, paper, halo = t["ink"], t["paper"], t["halo"]
+    colors = THEMES[theme or THEME]
+    ink, paper, halo = colors["ink"], colors["paper"], colors["halo"]
+    body = [s for s in shapes if not s.top]
+    details = [s for s in shapes if s.top]
     out: list[str] = []
     # 1) halo
-    for s in shapes:
-        if s.top:
-            continue
+    for s in body:
         if s.kind == "paper":
-            a = f'fill="{halo}" stroke="{halo}" stroke-width="{2 * (SW + H)}" {ROUND}'
+            attrs = _stroke(halo, 2 * (SW + H), fill=halo)
         elif s.kind == "pline":
-            a = f'fill="none" stroke="{halo}" stroke-width="{s.w + 2 * (SW + H)}" {ROUND}'
+            attrs = _stroke(halo, s.w + 2 * (SW + H))
         elif s.kind == "ink":
-            a = f'fill="{halo}" stroke="{halo}" stroke-width="{2 * H}" {ROUND}'
+            attrs = _stroke(halo, 2 * H, fill=halo)
         else:
-            a = f'fill="none" stroke="{halo}" stroke-width="{s.w + 2 * H}" {ROUND}'
-        out.append(s.tag(a))
+            attrs = _stroke(halo, s.w + 2 * H)
+        out.append(s.tag(attrs))
     # 2) outline / dark forms
-    for s in shapes:
-        if s.top:
-            continue
+    for s in body:
         if s.kind == "paper":
-            a = f'fill="{ink}" stroke="{ink}" stroke-width="{2 * SW}" {ROUND}'
+            attrs = _stroke(ink, 2 * SW, fill=ink)
         elif s.kind == "pline":
-            a = f'fill="none" stroke="{ink}" stroke-width="{s.w + 2 * SW}" {ROUND}'
+            attrs = _stroke(ink, s.w + 2 * SW)
         elif s.kind == "ink":
-            a = f'fill="{ink}" stroke="none"'
+            attrs = _flat(ink)
         else:
-            a = f'fill="none" stroke="{ink}" stroke-width="{s.w}" {ROUND}'
-        out.append(s.tag(a))
+            attrs = _stroke(ink, s.w)
+        out.append(s.tag(attrs))
     # 3) light fill on top (eraser for internal intersection lines)
-    for s in shapes:
-        if s.top:
-            continue
+    for s in body:
         if s.kind in ("paper", "fill"):
-            out.append(s.tag(f'fill="{paper}" stroke="none"'))
+            out.append(s.tag(_flat(paper)))
         elif s.kind == "pline":
-            out.append(s.tag(f'fill="none" stroke="{paper}" stroke-width="{s.w}" {ROUND}'))
+            out.append(s.tag(_stroke(paper, s.w)))
     # 4) top details
-    for s in shapes:
-        if not s.top:
-            continue
-        if s.kind == "ink":
-            out.append(s.tag(f'fill="{ink}" stroke="none"'))
-        else:
-            out.append(s.tag(f'fill="none" stroke="{ink}" stroke-width="{s.w}" {ROUND}'))
+    for s in details:
+        out.append(s.tag(_flat(ink) if s.kind == "ink" else _stroke(ink, s.w)))
     return "\n".join(out)
 
 
@@ -155,38 +165,47 @@ _STAR_INNER_RATIO = 0.45     # inner point radius / outer point radius
 _STAR_ROUNDING_RATIO = 0.1   # corner radius / outer point radius
 
 
-def star(center_x: float, center_y: float, outer_radius: float, rotation: float = 0) -> str:
-    """Star with _STAR_POINTS outer and as many inner points, all corners rounded.
-    rotation: degrees clockwise, 0 puts one outer point straight up."""
+def star(outer_radius: float) -> str:
+    """Star around the origin with _STAR_POINTS outer and as many inner points, all corners rounded.
+    One outer point looks straight up."""
     points = []
     for index in range(2 * _STAR_POINTS):
         radius = outer_radius if index % 2 == 0 else outer_radius * _STAR_INNER_RATIO
-        angle = math.radians(-90 + rotation + index * 180 / _STAR_POINTS)
-        points.append((center_x + radius * math.cos(angle), center_y + radius * math.sin(angle)))
+        angle = math.radians(-90 + index * 180 / _STAR_POINTS)
+        points.append((radius * math.cos(angle), radius * math.sin(angle)))
     return rounded_polygon(points, outer_radius * _STAR_ROUNDING_RATIO)
 
 
 def arrow() -> list[Shape]:
     """Default pointer: rounded triangle, minimal points (two per corner), the top-left corner is the hotspot."""
-    start = "M6 5.7"
-    top_left_corner = "C6 3.8 7.7 3.8 8.6 4.6"
-    upper_edge = "L22.06 16.8"
-    right_tip = "C22.8 17.5 22.6 19 21.7 19.2"
-    concave_lower_edge = "C15.7 21.1 11.1 23.8 8.3 26.6"
-    bottom_left_corner = "C7.6 27.3 6 27 6 25.4"  # the left edge closes the path
+    start = "M6 6.2"
+    top_left_corner = "C6 4.3 7.7 4.3 8.6 5.1"
+    upper_edge = "L22.06 17.3"
+    right_tip = "C22.8 18 22.6 19.5 21.7 19.7"
+    concave_lower_edge = "C15.7 21.6 11.1 24.3 8.3 27.1"
+    bottom_left_corner = "C7.6 27.8 6 27.5 6 25.9"  # the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
     return [path_shape(outline, "paper")]
 
 
-_LENS_CENTER = 13
-_LENS_RADIUS = 8.5
+_LENS_RADIUS = 8.4
+_LENS_CENTER = PADDING + PAPER_REACH + _LENS_RADIUS   # the lens touches the top left of the allowed region
 _ZOOM_SIGN_ARM = 3.8
+_HANDLE_RADIUS = 2.2
+_HANDLE_START_DISTANCE = 9.5   # from the lens center; the flat end hides under the lens outline
+_HALF_DIAGONAL = math.sqrt(0.5)   # cos(45 degrees): the handle runs along the grid diagonal
+_HANDLE_END = GRID - PADDING - H - _HANDLE_RADIUS   # round end touches the bottom right of the allowed region
 
 
 def zoom(sign: str) -> list[Shape]:
     center, arm = _LENS_CENTER, _ZOOM_SIGN_ARM
-    # handle: flat end hidden under the lens outline, round end on the far side
-    handle = _path("M18.16 21.27", "L21.27 18.16", "L29.06 25.94", "A2.2 2.2 0 0 1 25.94 29.06", "Z")
+    side = _HANDLE_RADIUS * _HALF_DIAGONAL   # offset of the handle edges from its axis on each grid axis
+    start = center + _HANDLE_START_DISTANCE * _HALF_DIAGONAL
+    handle = _path(f"M{_number(start - side)} {_number(start + side)}",
+                   f"L{_number(start + side)} {_number(start - side)}",
+                   f"L{_number(_HANDLE_END + side)} {_number(_HANDLE_END - side)}",
+                   f"A{_HANDLE_RADIUS} {_HANDLE_RADIUS} 0 0 1 {_number(_HANDLE_END - side)} {_number(_HANDLE_END + side)}",
+                   "Z")
     horizontal_bar = f"M{center - arm} {center} H{center + arm}"
     vertical_bar = f"M{center} {center - arm} V{center + arm}"
     shapes = [
@@ -199,9 +218,11 @@ def zoom(sign: str) -> list[Shape]:
     return shapes
 
 
-# Eyedropper and pen nib are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees
+# Eyedropper and pen nib are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees.
+# The tip sits in the bottom left corner of the allowed region.
+_TOOL_TIP = (PADDING + PAPER_REACH, GRID - PADDING - PAPER_REACH)
 _TOOL_TIP_ANGLE = 45
-_TOOL_TIP_XF = f"translate(3.8 28.2) rotate({_TOOL_TIP_ANGLE})"
+_TOOL_TIP_XF = f"translate({_number(_TOOL_TIP[0])} {_number(_TOOL_TIP[1])}) rotate({_TOOL_TIP_ANGLE})"
 
 
 def eyedropper() -> list[Shape]:
@@ -214,52 +235,41 @@ def eyedropper() -> list[Shape]:
     ]
 
 
-# Hands are in 32x32 grid coordinates: the open hand is fitted to the grid with outline and halo,
-# the closed hand has the same scale and anchor (two states of one cursor, so it is not enlarged).
+# Hands are in 32x32 grid coordinates, fitted to the allowed region with outline and halo.
+# The closed hand has the same scale and anchor (two states of one cursor, so it is not enlarged).
 # Both outlines start and end at the wrist; each part is listed in drawing order.
-_HAND_START = "M 14.26 29.79"
-_HAND_END = "L 14.26 29.79 Z"
+_HAND_WRIST = "14.45 28.3"
 
 _HAND_OPEN_PARTS = {
-    "wrist_to_thumb": "C 11.35 29.79 7.93 23.27 5.41 20.82",
-    "thumb": "C 3.97 19.42 1.67 18.92 2.53 16.57 C 3.23 14.67 6.18 14.36 8.38 15.76 "
-             "C 9.97 16.77 11.25 18.09 11.25 18.09",
-    "index_finger": "C 11.25 18.09 8.77 9.05 8.42 7.73 C 8.07 6.41 8.85 5.07 10.17 4.7 "
-                    "C 11.48 4.34 12.82 5 13.21 6.45 C 13.6 7.91 14.96 12.91 14.96 12.91",
-    "middle_finger": "C 14.96 12.91 14.25 6.06 14.13 4.7 C 14 3.35 15.14 2.32 16.5 2.21 "
-                     "C 17.75 2.12 19.03 3.33 19.08 4.7 C 19.13 6.07 19.33 12.72 19.33 12.72",
-    "ring_finger": "C 19.33 12.72 20 7.15 20.15 5.79 C 20.31 4.39 21.61 3.68 22.93 3.95 "
-                   "C 24.2 4.21 24.88 5.74 24.66 7.09 C 24.46 8.41 23.51 14 23.51 14",
-    "little_finger": "C 23.51 14 24.78 9.85 25.14 8.72 C 25.55 7.42 27.15 7.04 28.28 7.47 "
-                     "C 29.51 7.94 29.97 9.39 29.43 11.2 C 28.89 13.02 28.42 14.54 27.59 17.08",
-    "palm_to_wrist": "C 27.06 18.7 27.21 22.62 25.84 24.99 C 23.12 29.67 22.4 29.79 20.36 29.79",
+    "wrist_to_thumb": "C 11.85 28.3 8.8 22.48 6.56 20.3",
+    "thumb": "C 5.27 19.05 3.22 18.6 3.99 16.51 C 4.61 14.81 7.24 14.54 9.2 15.79 "
+             "C 10.62 16.69 11.76 17.86 11.76 17.86",
+    "index_finger": "C 11.76 17.86 9.55 9.8 9.24 8.62 C 8.93 7.45 9.62 6.25 10.8 5.92 "
+                    "C 11.97 5.6 13.16 6.19 13.51 7.48 C 13.86 8.79 15.07 13.24 15.07 13.24",
+    "middle_finger": "C 15.07 13.24 14.44 7.14 14.33 5.92 C 14.22 4.72 15.23 3.8 16.45 3.7 "
+                     "C 17.56 3.62 18.7 4.7 18.75 5.92 C 18.79 7.14 18.97 13.07 18.97 13.07",
+    "ring_finger": "C 18.97 13.07 19.57 8.11 19.7 6.89 C 19.84 5.65 21 5.01 22.18 5.25 "
+                   "C 23.31 5.49 23.92 6.85 23.72 8.05 C 23.54 9.23 22.7 14.22 22.7 14.22",
+    "little_finger": "C 22.7 14.22 23.83 10.52 24.15 9.51 C 24.52 8.35 25.94 8.01 26.95 8.39 "
+                     "C 28.05 8.81 28.46 10.11 27.98 11.72 C 27.5 13.34 27.08 14.7 26.34 16.96",
+    "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
 }
 _HAND_CLOSED_PARTS = {
-    "wrist_to_thumb": "C 11.91 29.79 7.78 23.66 7.18 20.2",
-    "thumb": "C 6.89 18.53 10.6 15.77 10.6 15.77 L 11.25 18.09",
-    "index_finger": "C 11.25 18.09 10.65 15.95 10.31 14.69 C 9.97 13.42 9.96 11.89 11.75 11.22 "
-                    "C 13.03 10.74 14.61 11.59 14.96 12.91",
-    "middle_finger": "L 14.63 11.63 C 14.41 10.3 15.66 9.12 17.03 9.12 C 18.39 9.12 19.51 10.07 19.51 11.43",
-    "ring_finger": "L 19.33 12.72 C 19.33 12.72 19.35 12.79 19.51 11.43 C 19.66 10.03 21.31 9.33 22.57 9.76 "
-                   "C 23.69 10.13 24.37 11.38 24 12.61 C 23.78 13.33 23.51 14 23.51 14",
-    "little_finger": "C 23.51 14 24.57 11.58 26.77 12.81 C 27.98 13.48 27.93 15.83 27.59 17.08",
-    "palm_to_wrist": "C 27.06 18.7 27.21 22.62 25.84 24.99 C 23.12 29.67 22.4 29.79 20.36 29.79",
+    "wrist_to_thumb": "C 12.35 28.3 8.67 22.83 8.13 19.75",
+    "thumb": "C 7.88 18.26 11.18 15.79 11.18 15.79 L 11.76 17.86",
+    "index_finger": "C 11.76 17.86 11.23 15.96 10.93 14.83 C 10.62 13.7 10.61 12.33 12.21 11.74 "
+                    "C 13.35 11.31 14.76 12.07 15.07 13.24",
+    "middle_finger": "L 14.78 12.1 C 14.58 10.92 15.7 9.86 16.92 9.86 C 18.13 9.86 19.13 10.71 19.13 11.92",
+    "ring_finger": "L 18.97 13.07 C 18.97 13.07 18.99 13.14 19.13 11.92 C 19.26 10.68 20.74 10.05 21.86 10.44 "
+                   "C 22.86 10.77 23.46 11.88 23.13 12.98 C 22.94 13.62 22.7 14.22 22.7 14.22",
+    "little_finger": "C 22.7 14.22 23.64 12.06 25.6 13.16 C 26.68 13.75 26.64 15.85 26.34 16.96",
+    "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
 }
 
 
 def _hand(parts: dict[str, str]) -> list[Shape]:
-    outline = _path(_HAND_START, *parts.values(), _HAND_END)
+    outline = _path(f"M {_HAND_WRIST}", *parts.values(), f"L {_HAND_WRIST} Z")
     return [path_shape(outline, "fill", SW), path_shape(outline, "line", SW, top=True)]
-
-
-def hand_open() -> list[Shape]:
-    """Open hand."""
-    return _hand(_HAND_OPEN_PARTS)
-
-
-def hand_closed() -> list[Shape]:
-    """Closed hand: the same cursor, fingers bent."""
-    return _hand(_HAND_CLOSED_PARTS)
 
 
 _NIB_SLIT = 13.14  # slit length from the tip; the dot sits at its end
@@ -280,52 +290,55 @@ def pen_nib() -> list[Shape]:
     ]
 
 
-def crosshair(cx: float = 16, cy: float = 16, arm: float = 13.5, gap: float = 5.0) -> list[Shape]:
-    """Precision crosshair with four separate arms and an open center."""
-    left_arm = f"M{cx - arm} {cy} H{cx - gap}"
-    right_arm = f"M{cx + gap} {cy} H{cx + arm}"
-    top_arm = f"M{cx} {cy - arm} V{cy - gap}"
-    bottom_arm = f"M{cx} {cy + gap} V{cy + arm}"
+_CANVAS_CENTER = GRID // 2
+
+
+def crosshair() -> list[Shape]:
+    """Precision crosshair with four separate arms and an open center; the arm ends touch the allowed region."""
+    center, gap, near, far = _CANVAS_CENTER, 5, _number(LINE_INSET), _number(LINE_FAR_EDGE)
+    left_arm = f"M{near} {center} H{center - gap}"
+    right_arm = f"M{center + gap} {center} H{far}"
+    top_arm = f"M{center} {near} V{center - gap}"
+    bottom_arm = f"M{center} {center + gap} V{far}"
     return [path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", SW)]
 
 
 def artboard() -> list[Shape]:
-    """Artboard cursor with the stepped lower-right frame from the supplied SVG."""
-    outline = "M2.5 16 H11 M21 16 H29.5 V29.5 M16 2.5 V11 M16 21 V29.5 H29.5"
-    detail = "M2.5 16 H11 M16 2.5 V11 M21 16 H29.5 V29.5 H16 V21"
+    """Artboard cursor with the stepped lower-right frame; the line ends touch the allowed region."""
+    near, far = _number(LINE_INSET), _number(LINE_FAR_EDGE)
+    outline = f"M{near} 16 H11 M21 16 H{far} V{far} M16 {near} V11 M16 21 V{far} H{far}"
+    detail = f"M{near} 16 H11 M16 {near} V11 M21 16 H{far} V{far} H16 V21"
     return [
         path_shape(outline, "line", SW),
         path_shape(detail, "line", SW, top=True),
     ]
 
 
-_CROP_CENTER = (16, 16)
 _CROP_RING_RADIUS = 6.5
-_CROP_ARM_OUTER_RADIUS = 11.5
+_CROP_ARM_OUTER_RADIUS = _CANVAS_CENTER - LINE_INSET   # the arm ends touch the allowed region
 _CROP_CENTER_DOT_RADIUS = 2
 
 
 def crop() -> list[Shape]:
     """Crop tool target with arms meeting the circular ring."""
-    center_x, center_y = _CROP_CENTER
+    center = _CANVAS_CENTER
     inner, outer = _CROP_RING_RADIUS, _CROP_ARM_OUTER_RADIUS
     arms = _path(
-        f"M{center_x} {center_y - outer} V{center_y - inner}",
-        f"M{center_x + inner} {center_y} H{center_x + outer}",
-        f"M{center_x} {center_y + inner} V{center_y + outer}",
-        f"M{center_x - outer} {center_y} H{center_x - inner}",
+        f"M{center} {_number(center - outer)} V{center - inner}",
+        f"M{center + inner} {center} H{_number(center + outer)}",
+        f"M{center} {center + inner} V{_number(center + outer)}",
+        f"M{_number(center - outer)} {center} H{center - inner}",
     )
-    circle = f'cx="{center_x}" cy="{center_y}" r="{_CROP_RING_RADIUS}"'
-    center_dot = f'cx="{center_x}" cy="{center_y}" r="{_CROP_CENTER_DOT_RADIUS}"'
     return [
         path_shape(arms, "line", SW),
-        Shape("circle", circle, "paper"),
-        Shape("circle", center_dot, "ink", top=True),
+        Shape("circle", f'cx="{center}" cy="{center}" r="{_CROP_RING_RADIUS}"', "paper"),
+        Shape("circle", f'cx="{center}" cy="{center}" r="{_CROP_CENTER_DOT_RADIUS}"', "ink", top=True),
     ]
 
 
 _WAND_TILT = 32
-_SCISSORS_HOTSPOT = (10, 7)
+_SCISSORS_HOTSPOT = (10, 5.6)
+_SCISSORS_SCALE = 1.078   # the scissors span the same height as the magic wand
 _SCISSORS_XF = f"translate({_SCISSORS_HOTSPOT[0]} {_SCISSORS_HOTSPOT[1]}) rotate({-_WAND_TILT})"
 _SCISSORS_PATH = (
     "M0 15.078 L-1.155 17.079 C-0.952 18.006 -1.081 19.009 -1.594 19.895 "
@@ -347,15 +360,17 @@ _SCISSORS_PATH = (
 
 def scissors() -> list[Shape]:
     """Scissors point down in local coordinates and rotate to the Magic Wand angle."""
-    return [path_shape(_SCISSORS_PATH, "ink", xf=_SCISSORS_XF)]
+    # only the coordinates are scaled, so the halo keeps its width
+    scaled = re.sub(r"-?\d+\.?\d*", lambda match: _number(float(match.group()) * _SCISSORS_SCALE), _SCISSORS_PATH)
+    return [path_shape(scaled, "ink", xf=_SCISSORS_XF)]
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
-_WAND_CENTER = (10, 8)      # hotspot: the star center
+_WAND_CENTER = (10, 9.2)    # hotspot: the star center
 _WAND_STAR_RADIUS = 8.8
 _WAND_TIP_WIDTH = 2.8        # stick width next to the star
 _WAND_HANDLE_WIDTH = 4.6
-_WAND_LENGTH = 24             # from the star center to the handle end
+_WAND_LENGTH = 23.2           # from the star center to the handle end
 _WAND_STAR_STICK_GAP = 0    # visible gap between the outlined star and stick
 
 
@@ -369,24 +384,23 @@ def magic_wand() -> list[Shape]:
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    wand_star = star(0, 0, _WAND_STAR_RADIUS)
     return [
-        path_shape(wand_star, "ink", xf=transform),
+        path_shape(star(_WAND_STAR_RADIUS), "ink", xf=transform),
         path_shape(stick, "ink", xf=transform),
     ]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
 # the drop falls below the lower rim end and its lowest point is the hotspot.
-_BUCKET_CENTER = (19.5, 17.2)
+_BUCKET_CENTER = (18.9, 17.2)
 _BUCKET_TILT = 35            # degrees counter-clockwise
 _BUCKET_RIM_HALF = 8.7       # half width at the rim (top)
 _BUCKET_BASE_HALF = 5.5      # half width at the base (bottom)
 _BUCKET_HALF_HEIGHT = 7.7
 _BUCKET_RIM_ROUNDING = 1.1
 _BUCKET_BASE_ROUNDING = 2.2
-_BUCKET_HANDLE_RISE = 8.4   # how far the handle arc rises above the rim
-_DROP_HOTSPOT = (6, 30)
+_BUCKET_HANDLE_RISE = 8.4  # how far the handle arc rises above the rim
+_DROP_HOTSPOT = (6, GRID - PADDING - H)   # the lowest point touches the bottom of the allowed region
 _DROP_RADIUS = 2.6
 _DROP_HEIGHT = 6.8           # from the pointed top to the lowest point
 
@@ -396,13 +410,12 @@ def fill() -> list[Shape]:
     center_x, center_y = _BUCKET_CENTER
     transform = f"translate({center_x} {center_y}) rotate({-_BUCKET_TILT})"
     rim, base = -_BUCKET_HALF_HEIGHT, _BUCKET_HALF_HEIGHT
-    rim_rounding, base_rounding = _BUCKET_RIM_ROUNDING, _BUCKET_BASE_ROUNDING
     body = rounded_polygon([(-_BUCKET_RIM_HALF, rim), (_BUCKET_RIM_HALF, rim),
                             (_BUCKET_BASE_HALF, base), (-_BUCKET_BASE_HALF, base)],
-                           [rim_rounding, rim_rounding, base_rounding, base_rounding])
+                           [_BUCKET_RIM_ROUNDING, _BUCKET_RIM_ROUNDING, _BUCKET_BASE_ROUNDING, _BUCKET_BASE_ROUNDING])
+    handle_top = rim - _BUCKET_HANDLE_RISE
     handle = _path(f"M{-_BUCKET_RIM_HALF} {rim}",
-                   f"C{-_BUCKET_RIM_HALF} {rim - _BUCKET_HANDLE_RISE} "
-                   f"{_BUCKET_RIM_HALF} {rim - _BUCKET_HANDLE_RISE} {_BUCKET_RIM_HALF} {rim}")
+                   f"C{-_BUCKET_RIM_HALF} {handle_top} {_BUCKET_RIM_HALF} {handle_top} {_BUCKET_RIM_HALF} {rim}")
     drop_x, drop_bottom = _DROP_HOTSPOT
     drop_center_y = drop_bottom - _DROP_RADIUS
     drop_top = drop_bottom - _DROP_HEIGHT
@@ -423,45 +436,42 @@ def fill() -> list[Shape]:
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
 # If an element does not fit into the base's 32x32 grid, the canvas of that cursor grows to the right
 # and down (the hotspot stays where it was, the origin is the top left corner).
-# Every glyph is drawn once around its own origin (0, 0); where it sits is set per base in BADGE_ANCHOR:
+# Every glyph is drawn once around its own origin (0, 0) and no glyph reaches farther than _BADGE_HALF_SIZE,
+# so all badges share one origin in the bottom right corner of the allowed region.
 #   "shared" - universal marks (+, -), usable on any cursor;
 #   "<base>" - marks of one tool, so a bulky mark never constrains the others.
 # add_badged() looks in the base's group first, then in "shared".
+_BADGE_HALF_SIZE = 2.8
+BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
-        "plus": [Shape("path", 'd="M-2.8 0 H2.8 M0 -2.8 V2.8"', "line", SW)],
-        "minus": [Shape("path", 'd="M-2.8 0 H2.8"', "line", SW)],
+        "plus": [path_shape("M-2.8 0 H2.8 M0 -2.8 V2.8", "line", SW)],
+        "minus": [path_shape("M-2.8 0 H2.8", "line", SW)],
     },
     "pen": {
-        "wave": [Shape("path", 'd="M-3.8 1.4 Q-2.15 -1.4 -0.5 1.4 T2.8 1.4"', "line", SW)],
-        "curve": [Shape("path", 'd="M-4.6 2.8 C-1.4 2.8 -1.4 -3.6 2.8 -3.6"', "line", SW)],
-        "caret": [Shape("path", 'd="M-3 2.6 L0 -1.8 L2.8 2.6"', "line", SW)],
+        "wave": [path_shape("M-3.8 1.4 Q-2.15 -1.4 -0.5 1.4 T2.8 1.4", "line", SW)],
+        "curve": [path_shape("M-4.6 2.8 C-1.4 2.8 -1.4 -3.6 2.8 -3.6", "line", SW)],
+        "caret": [path_shape("M-3 2.6 L0 -1.8 L2.8 2.6", "line", SW)],
         "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
 }
-
-# Badge origin on the grid per base cursor; DEFAULT is used for bases not listed.
-# The pen nib occupies the diagonal, so its badges sit lower in the corner: the halos must not
-# touch the nib, and the outer halo stays inside the grid.
-BADGE_ANCHOR_DEFAULT = (24.5, 24.5)
-BADGE_ANCHOR = {"pen": (26.4, 26.4)}
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
 CANVAS: dict[str, tuple[float, float]] = {}
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
-CURSORS: dict[str, tuple[tuple[int, int], callable]] = {
-    "arrow": ((7, 4), arrow),
-    "zoom_in": ((13, 13), lambda: zoom("+")),
-    "zoom_out": ((13, 13), lambda: zoom("-")),
-    "eyedropper": ((4, 28), eyedropper),
-    "hand_open": ((16, 16), hand_open),
-    "hand_closed": ((16, 16), hand_closed),
-    "pen": ((4, 28), pen_nib),
-    "crosshair": ((16, 16), crosshair),
-    "artboard": ((16, 16), artboard),
-    "crop": (_CROP_CENTER, crop),
+CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
+    "arrow": ((7, 4.5), arrow),
+    "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
+    "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
+    "eyedropper": (_TOOL_TIP, eyedropper),
+    "hand_open": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_OPEN_PARTS)),
+    "hand_closed": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_CLOSED_PARTS)),
+    "pen": (_TOOL_TIP, pen_nib),
+    "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
+    "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
+    "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
     "scissors": (_SCISSORS_HOTSPOT, scissors),
     "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
@@ -473,14 +483,13 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     canvas: size in grid units if the badge goes beyond the base's 32x32 grid."""
     hot, base_factory = CURSORS[base]
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
-    ax, ay = BADGE_ANCHOR.get(base, BADGE_ANCHOR_DEFAULT)
-    placed = [replace(s, xf=f"translate({ax} {ay})") for s in shapes]
+    placed = [replace(s, xf=f"translate({_number(BADGE_ORIGIN)} {_number(BADGE_ORIGIN)})") for s in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
     if canvas:
         CANVAS[name] = canvas
 
 
-for _name, (_base, _badge) in {
+for name, (base, badge) in {
     "pen_freeform": ("pen", "wave"),
     "pen_curvature": ("pen", "curve"),
     "pen_add": ("pen", "plus"),
@@ -488,9 +497,21 @@ for _name, (_base, _badge) in {
     "pen_convert": ("pen", "caret"),
     "pen_close": ("pen", "ring"),
 }.items():
-    add_badged(_name, _base, _badge)
+    add_badged(name, base, badge)
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
 def canvas_size(name: str) -> tuple[float, float]:
     return CANVAS.get(name, (GRID, GRID))
+
+
+def build_svg(name: str, size: int = GRID, theme: str | None = None) -> str:
+    """size = pixels per GRID units, so the scale is the same for every canvas.
+    Width/height are integers when size is integer so the rasterizer hits whole pixels."""
+    hot, factory = CURSORS[name]
+    canvas_width, canvas_height = canvas_size(name)
+    width = round(canvas_width * size / GRID)
+    height = round(canvas_height * size / GRID)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {canvas_width:g} {canvas_height:g}" shape-rendering="geometricPrecision">\n'
+            f'<!-- hotspot: {_number(hot[0])},{_number(hot[1])} -->\n{render(factory(), theme=theme)}\n</svg>\n')
