@@ -31,9 +31,6 @@ THEMES = {
 THEME = "dark"       # default export theme; change to "light" for the inverse
 # ===========================================================================
 
-ROUND = 'stroke-linecap="round" stroke-linejoin="round"'
-
-
 @dataclass
 class Shape:
     """A single cursor element.
@@ -52,14 +49,15 @@ class Shape:
     w: float = 0.0
     top: bool = False
     xf: str = ""
+    line_join: str = "round"
 
     def tag(self, attrs: str) -> str:
         t = f' transform="{self.xf}"' if self.xf else ""
         return f"<{self.el} {self.geom} {attrs}{t}/>"
 
 
-def _stroke(color: str, width: float, fill: str = "none") -> str:
-    return f'fill="{fill}" stroke="{color}" stroke-width="{width}" {ROUND}'
+def _stroke(color: str, width: float, fill: str = "none", line_join: str = "round") -> str:
+    return f'fill="{fill}" stroke="{color}" stroke-width="{width}" stroke-linecap="round" stroke-linejoin="{line_join}"'
 
 
 def _flat(color: str) -> str:
@@ -76,34 +74,34 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
     # 1) halo
     for s in body:
         if s.kind == "paper":
-            attrs = _stroke(halo, 2 * (SW + H), fill=halo)
+            attrs = _stroke(halo, 2 * (SW + H), fill=halo, line_join=s.line_join)
         elif s.kind == "pline":
-            attrs = _stroke(halo, s.w + 2 * (SW + H))
+            attrs = _stroke(halo, s.w + 2 * (SW + H), line_join=s.line_join)
         elif s.kind == "ink":
-            attrs = _stroke(halo, 2 * H, fill=halo)
+            attrs = _stroke(halo, 2 * H, fill=halo, line_join=s.line_join)
         else:
-            attrs = _stroke(halo, s.w + 2 * H)
+            attrs = _stroke(halo, s.w + 2 * H, line_join=s.line_join)
         out.append(s.tag(attrs))
     # 2) outline / dark forms
     for s in body:
         if s.kind == "paper":
-            attrs = _stroke(ink, 2 * SW, fill=ink)
+            attrs = _stroke(ink, 2 * SW, fill=ink, line_join=s.line_join)
         elif s.kind == "pline":
-            attrs = _stroke(ink, s.w + 2 * SW)
+            attrs = _stroke(ink, s.w + 2 * SW, line_join=s.line_join)
         elif s.kind == "ink":
             attrs = _flat(ink)
         else:
-            attrs = _stroke(ink, s.w)
+            attrs = _stroke(ink, s.w, line_join=s.line_join)
         out.append(s.tag(attrs))
     # 3) light fill on top (eraser for internal intersection lines)
     for s in body:
         if s.kind in ("paper", "fill"):
             out.append(s.tag(_flat(paper)))
         elif s.kind == "pline":
-            out.append(s.tag(_stroke(paper, s.w)))
+            out.append(s.tag(_stroke(paper, s.w, line_join=s.line_join)))
     # 4) top details
     for s in details:
-        out.append(s.tag(_flat(ink) if s.kind == "ink" else _stroke(ink, s.w)))
+        out.append(s.tag(_flat(ink) if s.kind == "ink" else _stroke(ink, s.w, line_join=s.line_join)))
     return "\n".join(out)
 
 
@@ -120,8 +118,9 @@ def path_shape(
     width: float = 0.0,
     top: bool = False,
     xf: str = "",
+    line_join: str = "round",
 ) -> Shape:
-    return Shape("path", f'd="{path_data}"', kind, width, top, xf)
+    return Shape("path", f'd="{path_data}"', kind, width, top, xf, line_join)
 
 
 def _number(value: float) -> str:
@@ -324,10 +323,11 @@ def magnet() -> list[Shape]:
     body_end = pole_top - _MAGNET_POLE_GAP
     body = _path(f"M{-outer} {body_end} V{bend} A{outer} {outer} 0 0 1 {outer} {bend} V{body_end}",
                  f"H{inner} V{bend} A{inner} {inner} 0 0 0 {-inner} {bend} V{body_end} Z")
-    poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"', "ink", xf=_MAGNET_XF)
+    poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"',
+                   "ink", xf=_MAGNET_XF, line_join="miter")
              for x in (-outer, inner)]
     dot = Shape("circle", f'cx="0" cy="0" r="{_MAGNET_DOT_RADIUS}"', "ink", xf=_MAGNET_XF)
-    return [path_shape(body, "ink", xf=_MAGNET_XF), *poles, dot]
+    return [path_shape(body, "ink", xf=_MAGNET_XF, line_join="miter"), *poles, dot]
 
 
 _CANVAS_CENTER = GRID // 2
