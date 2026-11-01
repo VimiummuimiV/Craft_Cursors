@@ -2,7 +2,7 @@
 Generator for a unified cursor set.
 
 Usage:   python cursors.py [output_folder]
-Result: svg/, png/, cur/, preview.html, cursors.json
+Result: svg/, png/{dark,light}/, cur/{dark,light}/, preview.html, cursors.json
 
 Cursor geometry and shared style settings live in cursor_definitions.py. Each cursor is
 described on a 32x32 grid, so changing shared thickness/colors rebuilds the entire set.
@@ -125,21 +125,25 @@ def main() -> None:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
     for d in ("svg", "png", "cur"):
         (out / d).mkdir(parents=True, exist_ok=True)
+    for theme in THEMES:
+        for d in ("png", "cur"):
+            (out / d / theme).mkdir(parents=True, exist_ok=True)
     manifest = {}
     for name in CURSORS:
         (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
-        entries = []
-        for px in CUR_SIZES:
-            png = png_bytes(render_image(name, px))
-            if px == PNG_SIZE:
-                (out / "png" / f"{name}_{px}.png").write_bytes(png)
-            else:
-                stale_png = out / "png" / f"{name}_{px}.png"
-                if stale_png.exists():
-                    stale_png.unlink()
-            hx, hy = hotspot(name, px)
-            entries.append((image_side(name, px), hx, hy, png))
-        write_cur(out / "cur" / f"{name}.cur", entries)
+        for theme in THEMES:
+            entries = []
+            for px in CUR_SIZES:
+                png = png_bytes(render_image(name, px, theme=theme))
+                if px == PNG_SIZE:
+                    (out / "png" / theme / f"{name}_{px}.png").write_bytes(png)
+                else:
+                    stale_png = out / "png" / theme / f"{name}_{px}.png"
+                    if stale_png.exists():
+                        stale_png.unlink()
+                hx, hy = hotspot(name, px)
+                entries.append((image_side(name, px), hx, hy, png))
+            write_cur(out / "cur" / theme / f"{name}.cur", entries)
         manifest[name] = {
             "hotspot_32": CURSORS[name][0],
             "canvas": canvas_size(name),
