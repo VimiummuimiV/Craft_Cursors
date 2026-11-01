@@ -385,8 +385,8 @@ def qcursor(name: str, size: int = 32):
 def preview_html() -> str:
     cards = []
     actual_preview_size = 24
-    # large preview: fixed 3 px per grid unit; panels grow with the canvas (no crop)
-    large_px_per_unit = 3.0
+    # large preview: 2 px per grid unit so cards stay compact and uniform
+    large_px_per_unit = 2.0
     for name in CURSORS:
         hx, hy = CURSORS[name][0]
         cw, ch = canvas_size(name)
@@ -422,10 +422,8 @@ def preview_html() -> str:
                 f'<div class="panel actual-panel dark">'
                 f'<div class="actual-stage" {c_stage}>{c_svg}</div></div>'
                 f'</div></div>')
-        # card min-width follows the larger panels so both fit without clipping
-        card_min = max(280, int(2 * max(pw, ph) + 28))
         cards.append(
-            f'<div class="card" style="min-width:{card_min}px">'
+            f'<div class="card">'
             f'{"".join(large_blocks)}'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
@@ -434,127 +432,130 @@ def preview_html() -> str:
             f'<div class="actual-label view-compact">Compact ({actual_preview_size}px)</div>'
             f'{"".join(compact_blocks)}'
             f'</div>')
-    styles = """<style>
-	/* Page layout */
-	body {
+    # fixed equal card width — packs left, does not stretch with the viewport
+    col_w = 260
+    styles = f"""<style>
+	/* Page layout — equal columns, equal gaps, no stretch */
+	body {{
 		font: 14px 'Segoe UI', Arial, sans-serif;
 		margin: 24px;
 		padding-bottom: 64px;
 		background: #888;
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(260px, max-content));
+		grid-template-columns: repeat(auto-fill, {col_w}px);
 		gap: 16px;
+		justify-content: start;
 		align-items: start;
-	}
+	}}
 
-	/* Cursor cards */
-	.card {
+	.card {{
 		background: rgba(255, 255, 255, .18);
-		padding: 10px 10px 8px;
+		padding: 10px;
 		border-radius: 10px;
 		box-sizing: border-box;
 		color: #111;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
+		width: 100%;
+		min-width: 0;
+	}}
 
-	.row {
+	.row {{
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 8px;
-	}
+	}}
 
-	.panel {
+	.panel {{
 		display: grid;
 		place-items: center;
 		border-radius: 8px;
 		overflow: hidden;
 		box-sizing: border-box;
-	}
+		width: 100%;
+	}}
 
-	/* Light and dark preview backgrounds — pure palette only */
-	.light { background: #ffffff; }
-	.dark { background: #000000; }
+	.light {{ background: #ffffff; }}
+	.dark {{ background: #000000; }}
 
-	.theme {
+	.theme {{
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
-	}
+	}}
 
-	.theme-label {
+	.theme-label {{
 		font-size: 11px;
 		font-weight: 600;
 		letter-spacing: .04em;
 		text-transform: uppercase;
 		color: #333;
 		opacity: .75;
-	}
+	}}
 
-	/* Enlarged cursor preview */
-	/* the size of .stage is set inline from the canvas of each cursor */
-	.stage {
+	.stage {{
 		position: relative;
-	}
+		max-width: 100%;
+	}}
 
-	.stage svg {
+	.stage svg {{
 		display: block;
-	}
+		max-width: 100%;
+		height: auto;
+	}}
 
-	/* Actual-size cursor preview */
-	.actual-label {
+	.actual-label {{
 		font-size: 12px;
 		font-weight: 600;
 		line-height: 1.2;
 		color: #333;
-	}
+	}}
 
-	.actual-panel {
-		aspect-ratio: auto;
+	.actual-panel {{
 		min-height: 48px;
 		padding: 6px;
-	}
+	}}
 
-	.actual-stage {
+	.actual-stage {{
 		position: relative;
-	}
+	}}
 
 	.actual-stage svg,
-	.actual-stage img {
+	.actual-stage img {{
 		display: block;
-	}
+		max-width: 100%;
+		height: auto;
+	}}
 
-	.compact-theme {
+	.compact-theme {{
 		gap: 2px;
-	}
+	}}
 
-	/* Cursor name and hotspot metadata */
-	.meta {
+	.meta {{
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
 		min-width: 0;
-	}
+	}}
 
-	.name {
+	.name {{
 		font-size: 15px;
 		font-weight: 600;
 		line-height: 1.2;
 		letter-spacing: .01em;
 		color: #111;
 		overflow-wrap: anywhere;
-	}
+	}}
 
-	.hotspot {
+	.hotspot {{
 		font-size: 12px;
 		line-height: 1.2;
 		color: #2c2c2c;
 		opacity: .8;
-	}
+	}}
 
-	/* Toolbar — fixed bottom center of the viewport */
-	.toolbar {
+	.toolbar {{
 		position: fixed;
 		bottom: 16px;
 		left: 50%;
@@ -571,27 +572,27 @@ def preview_html() -> str:
 		font-size: 13px;
 		color: #222;
 		z-index: 100;
-	}
+	}}
 
-	.toolbar label {
+	.toolbar label {{
 		display: flex;
 		align-items: center;
 		gap: 6px;
 		cursor: pointer;
 		user-select: none;
 		white-space: nowrap;
-	}
+	}}
 
-	.toolbar input {
+	.toolbar input {{
 		margin: 0;
-	}
+	}}
 
-	body.hide-large .view-large { display: none !important; }
-	body.hide-compact .view-compact { display: none !important; }
-	body.hide-dark .theme-dark { display: none !important; }
-	body.hide-light .theme-light { display: none !important; }
+	body.hide-large .view-large {{ display: none !important; }}
+	body.hide-compact .view-compact {{ display: none !important; }}
+	body.hide-dark .theme-dark {{ display: none !important; }}
+	body.hide-light .theme-light {{ display: none !important; }}
 
-	.toolbar button {
+	.toolbar button {{
 		font: inherit;
 		padding: 4px 12px;
 		border: 1px solid #bbb;
@@ -599,16 +600,16 @@ def preview_html() -> str:
 		background: #f5f5f5;
 		cursor: pointer;
 		color: #222;
-	}
+	}}
 
-	.toolbar button:hover {
+	.toolbar button:hover {{
 		background: #eaeaea;
-	}
+	}}
 
-	.toolbar button:disabled {
+	.toolbar button:disabled {{
 		opacity: .55;
 		cursor: wait;
-	}
+	}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 """
