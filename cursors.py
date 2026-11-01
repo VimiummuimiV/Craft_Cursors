@@ -310,18 +310,20 @@ def artboard() -> list[Shape]:
 # from the star center and tilted up-left; the star turns with it, one point straight along the stick.
 _WAND_CENTER = (12, 11)      # hotspot: the star center
 _WAND_TILT = 32              # degrees from vertical
-_WAND_STAR_RADIUS = 7.5
-_WAND_TIP_WIDTH = 2.6        # stick width next to the star
-_WAND_HANDLE_WIDTH = 4.2
-_WAND_LENGTH = 20            # from the star center to the handle end
+_WAND_STAR_RADIUS = 8.8
+_WAND_TIP_WIDTH = 2.8        # stick width next to the star
+_WAND_HANDLE_WIDTH = 4.6
+_WAND_LENGTH = 18             # from the star center to the handle end
+_WAND_STAR_STICK_GAP = 2    # visible gap between the outlined star and stick
 
 
 def magic_wand() -> list[Shape]:
     """Magic wand: star on a tapered stick."""
     center_x, center_y = _WAND_CENTER
     transform = f"translate({center_x} {center_y}) rotate({-_WAND_TILT})"
-    stick_start = _WAND_STAR_RADIUS * _STAR_INNER_RATIO  # the stick begins in the notch under the star
     tip_half, handle_half = _WAND_TIP_WIDTH / 2, _WAND_HANDLE_WIDTH / 2
+    star_notch = _WAND_STAR_RADIUS * _STAR_INNER_RATIO
+    stick_start = star_notch + 2 * SW + _WAND_STAR_STICK_GAP - tip_half
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
