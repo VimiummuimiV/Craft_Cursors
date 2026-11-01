@@ -218,7 +218,7 @@ def zoom(sign: str) -> list[Shape]:
     return shapes
 
 
-# Eyedropper and pen nib are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees.
+# Eyedropper, pen nib and knife are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees.
 # The tip sits in the bottom left corner of the allowed region.
 _TOOL_TIP = (PADDING + PAPER_REACH, GRID - PADDING - PAPER_REACH)
 _TOOL_TIP_ANGLE = 45
@@ -288,6 +288,21 @@ def pen_nib() -> list[Shape]:
         path_shape(f"M0 0 V{-_NIB_SLIT}", "line", SW, top=True, xf=_TOOL_TIP_XF),
         Shape("circle", f'cx="0" cy="{-_NIB_SLIT}" r="1.65"', "ink", top=True, xf=_TOOL_TIP_XF),
     ]
+
+
+# Knife: blade (outlined) sits on the handle (solid); the blade tip is the hotspot, the tip is off the handle axis.
+_KNIFE_SEAM = -17.92         # where the blade ends and the handle starts
+_KNIFE_HANDLE_SIDES = (-3.3, 2.17)
+_KNIFE_HANDLE_END = -31
+_KNIFE_HANDLE_CORNERS = [0.93, 0.93, 2.74, 2.74]
+
+
+def knife() -> list[Shape]:
+    seam, (side_a, side_b) = _KNIFE_SEAM, _KNIFE_HANDLE_SIDES
+    blade = _path("M0 0", f"Q-3.17 -5.34 -2.54 {seam}", f"L4.31 {seam}", "L3.68 -7.94", "C3.39 -3.48 0 0 0 0", "Z")
+    handle = rounded_polygon([(side_a, seam), (side_b, seam), (side_b, _KNIFE_HANDLE_END), (side_a, _KNIFE_HANDLE_END)],
+                             _KNIFE_HANDLE_CORNERS)
+    return [path_shape(blade, "paper", xf=_TOOL_TIP_XF), path_shape(handle, "ink", xf=_TOOL_TIP_XF)]
 
 
 _CANVAS_CENTER = GRID // 2
@@ -469,6 +484,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "hand_open": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_OPEN_PARTS)),
     "hand_closed": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_CLOSED_PARTS)),
     "pen": (_TOOL_TIP, pen_nib),
+    "knife": (_TOOL_TIP, knife),
     "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
