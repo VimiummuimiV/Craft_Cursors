@@ -623,6 +623,7 @@ def preview_html() -> str:
 </div>
 <script>
 (function () {
+  const KEY = 'cursors-preview-toggles';
   const map = {
     'tog-large': 'hide-large',
     'tog-compact': 'hide-compact',
@@ -630,11 +631,24 @@ def preview_html() -> str:
     'tog-light': 'hide-light',
   };
   function sync() {
+    const state = {};
     for (const [id, cls] of Object.entries(map)) {
       const el = document.getElementById(id);
       document.body.classList.toggle(cls, !el.checked);
+      state[id] = el.checked;
     }
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
   }
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      for (const id of Object.keys(map)) {
+        if (typeof saved[id] === 'boolean') {
+          document.getElementById(id).checked = saved[id];
+        }
+      }
+    }
+  } catch (_) {}
   for (const id of Object.keys(map)) {
     document.getElementById(id).addEventListener('change', sync);
   }
