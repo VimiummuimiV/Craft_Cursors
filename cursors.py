@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass, replace
 from typing import Callable
 
@@ -378,31 +377,28 @@ def crop() -> list[Shape]:
 
 _WAND_TILT = 32
 _SCISSORS_HOTSPOT = (10, 5.6)
-_SCISSORS_SCALE = 1.078   # the scissors span the same height as the magic wand
 _SCISSORS_XF = f"translate({_SCISSORS_HOTSPOT[0]} {_SCISSORS_HOTSPOT[1]}) rotate({-_WAND_TILT})"
 _SCISSORS_PATH = (
-    "M0 15.078 L-1.155 17.079 C-0.952 18.006 -1.081 19.009 -1.594 19.895 "
-    "C-2.684 21.785 -5.103 22.433 -6.993 21.342 C-8.883 20.252 -9.531 17.831 "
-    "-8.44 15.942 C-7.414 14.165 -5.212 13.485 -3.381 14.319 L-1.911 11.77 "
-    "L-5.276 5.94 C-7.223 2.569 -4.885 0 -4.885 0 L0 8.461 L4.885 0 "
-    "C4.885 0 7.222 2.568 5.276 5.94 L1.911 11.77 L3.381 14.319 "
-    "C5.212 13.485 7.414 14.164 8.44 15.942 C9.531 17.831 8.883 20.252 "
-    "6.993 21.342 C5.103 22.433 2.684 21.785 1.594 19.895 "
-    "C1.081 19.009 0.952 18.006 1.155 17.079 L0 15.078 Z "
-    "M4.13 16.382 C3.282 16.872 2.991 17.958 3.48 18.806 "
-    "C3.97 19.653 5.056 19.945 5.904 19.455 C6.751 18.965 7.042 17.879 "
-    "6.553 17.032 C6.063 16.184 4.977 15.894 4.13 16.382 Z "
-    "M-4.13 16.382 C-4.977 15.894 -6.063 16.184 -6.553 17.032 "
-    "C-7.042 17.879 -6.751 18.965 -5.904 19.455 C-5.056 19.945 -3.97 19.653 "
-    "-3.48 18.806 C-2.991 17.958 -3.282 16.872 -4.13 16.382 Z"
+    "M0 16.25 L-1.25 18.41 C-1.03 19.41 -1.17 20.49 -1.72 21.45 "
+    "C-2.89 23.48 -5.5 24.18 -7.54 23.01 C-9.58 21.83 -10.27 19.22 "
+    "-9.1 17.19 C-7.99 15.27 -5.62 14.54 -3.64 15.44 L-2.06 12.69 "
+    "L-5.69 6.4 C-7.79 2.77 -5.27 0 -5.27 0 L0 9.12 L5.27 0 "
+    "C5.27 0 7.79 2.77 5.69 6.4 L2.06 12.69 L3.64 15.44 "
+    "C5.62 14.54 7.99 15.27 9.1 17.19 C10.27 19.22 9.58 21.83 "
+    "7.54 23.01 C5.5 24.18 2.89 23.48 1.72 21.45 "
+    "C1.17 20.49 1.03 19.41 1.25 18.41 L0 16.25 Z "
+    "M4.45 17.66 C3.54 18.19 3.22 19.36 3.75 20.27 "
+    "C4.28 21.19 5.45 21.5 6.36 20.97 C7.28 20.44 7.59 19.27 "
+    "7.06 18.36 C6.54 17.45 5.37 17.13 4.45 17.66 Z "
+    "M-4.45 17.66 C-5.37 17.13 -6.54 17.45 -7.06 18.36 "
+    "C-7.59 19.27 -7.28 20.44 -6.36 20.97 C-5.45 21.5 -4.28 21.19 "
+    "-3.75 20.27 C-3.22 19.36 -3.54 18.19 -4.45 17.66 Z"
 )
 
 
 def scissors() -> list[Shape]:
     """Scissors point down in local coordinates and rotate to the Magic Wand angle."""
-    # only the coordinates are scaled, so the halo keeps its width
-    scaled = re.sub(r"-?\d+\.?\d*", lambda match: _number(float(match.group()) * _SCISSORS_SCALE), _SCISSORS_PATH)
-    return [path_shape(scaled, "ink", xf=_SCISSORS_XF)]
+    return [path_shape(_SCISSORS_PATH, "ink", xf=_SCISSORS_XF)]
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
