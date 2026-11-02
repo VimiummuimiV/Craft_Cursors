@@ -263,21 +263,20 @@ def star(outer_radius: float) -> str:
     return rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
 
 
-_ARROW_OFFSET = (-2, -2)
-_ARROW_HOTSPOT = (7 + _ARROW_OFFSET[0], 5 + _ARROW_OFFSET[1])
+_ARROW_HOTSPOT = (5, 3)
 
 
 def arrow() -> list[Shape]:
     """Default pointer: rounded triangle, minimal points (two per corner), the top-left corner is the hotspot.
     The left edge is a whole-pixel vertical, every anchor sits on a grid point."""
-    start = "M6 7"
-    top_left_corner = "C6 5 8 5 9 6"
-    upper_edge = "L22 18"
-    right_tip = "C23 19 22.4 20.6 21 21"
-    concave_lower_edge = "C16 22.4 11.5 24.4 8 26.5"
-    bottom_left_corner = "C7 27.1 6 27 6 26"  # tangent to the lower edge; the left edge closes the path
+    start = "M4 5"
+    top_left_corner = "C4 3 6 3 7 4"
+    upper_edge = "L20 16"
+    right_tip = "C21 17 20.4 18.6 19 19"
+    concave_lower_edge = "C14 20.4 9.5 22.4 6 24.5"
+    bottom_left_corner = "C5 25.1 4 25 4 24"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
-    return [path_shape(outline, "ink", transform=(*_ARROW_OFFSET, 0))]
+    return [path_shape(outline, "ink")]
 
 
 def path_selection() -> list[Shape]:
@@ -290,12 +289,12 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
-_CORNER_MARK = "M30 19 C30 25 27 28 21 28"
+_CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 
 def corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line", transform=(*_ARROW_OFFSET, 0))]
+    return arrow() + [path_shape(_CORNER_MARK, "line")]
 
 
 _LENS_RADIUS = 8
