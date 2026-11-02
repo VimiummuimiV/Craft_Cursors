@@ -579,12 +579,12 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
         "plus": [path_shape("M-2.8 0 H2.8 M0 -2.8 V2.8", "line", SW)],
         "minus": [path_shape("M-2.8 0 H2.8", "line", SW)],
+        "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
     "pen": {
         "wave": [path_shape("M-3.8 1.4 Q-2.15 -1.4 -0.5 1.4 T2.8 1.4", "line", SW)],
         "curve": [path_shape("M-4.6 2.8 C-1.4 2.8 -1.4 -3.6 2.8 -3.6", "line", SW)],
         "caret": [path_shape("M-3 2.6 L0 -1.8 L2.8 2.6", "line", SW)],
-        "ring": [Shape("circle", 'cx="0" cy="0" r="2.5"', "line", SW)],
     },
 }
 
@@ -635,6 +635,7 @@ for name, (base, badge) in {
     "pen_delete": ("pen", "minus"),
     "pen_convert": ("pen", "caret"),
     "pen_close": ("pen", "ring"),
+    "color_sampler": ("eyedropper", "ring"),
 }.items():
     add_badged(name, base, badge)
 # other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
