@@ -100,7 +100,11 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
             out.append(s.tag(_stroke(paper, s.w, line_join=s.line_join)))
     # 4) top details
     for s in details:
-        out.append(s.tag(_flat(ink) if s.kind == "ink" else _stroke(ink, s.w, line_join=s.line_join)))
+        if s.kind == "halo":
+            attrs = _flat(halo)
+        else:
+            attrs = _flat(ink) if s.kind == "ink" else _stroke(ink, s.w, line_join=s.line_join)
+        out.append(s.tag(attrs))
     return "\n".join(out)
 
 
@@ -124,6 +128,14 @@ def path_shape(
 
 def _number(value: float) -> str:
     return f"{round(value, 2) + 0.0:g}"
+
+
+def _dot(cx: float, cy: float, radius: float, xf: str = "") -> list[Shape]:
+    geom = f'cx="{_number(cx)}" cy="{_number(cy)}"'
+    return [
+        Shape("circle", f'{geom} r="{_number(radius + H)}"', "halo", top=True, xf=xf),
+        Shape("circle", f'{geom} r="{_number(radius)}"', "ink", top=True, xf=xf),
+    ]
 
 
 def _direction(origin: tuple[float, float], target: tuple[float, float]) -> tuple[float, float, float]:
@@ -326,8 +338,11 @@ def magnet() -> list[Shape]:
     poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"',
                    "ink", xf=_MAGNET_XF, line_join="miter")
              for x in (-outer, inner)]
-    dot = Shape("circle", f'cx="0" cy="{_MAGNET_DOT_OFFSET}" r="{_MAGNET_DOT_RADIUS}"', "ink", xf=_MAGNET_XF)
-    return [path_shape(body, "ink", xf=_MAGNET_XF, line_join="miter"), *poles, dot]
+    return [
+        path_shape(body, "ink", xf=_MAGNET_XF, line_join="miter"),
+        *poles,
+        *_dot(0, _MAGNET_DOT_OFFSET, _MAGNET_DOT_RADIUS, xf=_MAGNET_XF),
+    ]
 
 
 _CANVAS_CENTER = GRID // 2
@@ -343,7 +358,7 @@ def crosshair() -> list[Shape]:
     bottom_arm = f"M{center} {center + gap} V{far}"
     return [
         path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", SW),
-        Shape("circle", f'cx="{center}" cy="{center}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
+        *_dot(center, center, _CENTER_DOT_RADIUS),
     ]
 
 
@@ -355,7 +370,7 @@ def artboard() -> list[Shape]:
     return [
         path_shape(outline, "line", SW),
         path_shape(detail, "line", SW, top=True),
-        Shape("circle", f'cx="{_CANVAS_CENTER}" cy="{_CANVAS_CENTER}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
+        *_dot(_CANVAS_CENTER, _CANVAS_CENTER, _CENTER_DOT_RADIUS),
     ]
 
 
@@ -376,7 +391,7 @@ def crop() -> list[Shape]:
     return [
         path_shape(arms, "line", SW),
         Shape("circle", f'cx="{center}" cy="{center}" r="{_CROP_RING_RADIUS}"', "paper"),
-        Shape("circle", f'cx="{center}" cy="{center}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
+        *_dot(center, center, _CENTER_DOT_RADIUS),
     ]
 
 
