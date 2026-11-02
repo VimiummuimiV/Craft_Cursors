@@ -286,6 +286,15 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
+_CORNER_CURSOR_CANVAS = (36, 36)
+_CORNER_MARK = "M30 19 C30 25 27 28 21 28"
+
+
+def corner() -> list[Shape]:
+    """Pointer with a rounded-corner arc."""
+    return arrow() + [path_shape(_CORNER_MARK, "line")]
+
+
 _LENS_RADIUS = 8
 _LENS_CENTER = PADDING + PAPER_REACH + _LENS_RADIUS   # the lens touches the top left of the allowed region
 _ZOOM_SIGN_ARM = 4
@@ -652,7 +661,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
 }
 
 # Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
-CANVAS: dict[str, tuple[float, float]] = {}
+CANVAS: dict[str, tuple[float, float]] = {"corner": _CORNER_CURSOR_CANVAS}
 
 
 # name -> (hotspot on the 32x32 grid, shape factory)
@@ -660,6 +669,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "arrow": ((7, 5), arrow),
     "path_selection": ((7, 5), path_selection),
     "direct_selection": ((7, 5), direct_selection),
+    "corner": ((7, 5), corner),
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),

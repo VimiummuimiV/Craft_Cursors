@@ -19,6 +19,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - Glyph only, or the default cursor plus one small badge. No clutter, no blobs, no different cursor per tool unless the tool truly needs it. Path Selection reuses the standard pointer; Direct Selection uses the same silhouette with an inverse fill/outline.
 - No red hotspot dot in SVGs or previews. No badges on the default arrow.
 - Move/resize cursors follow the W11 concept: separate arrowheads, vertical and horizontal pairs.
+- Corner Tool combines the pointer with a rounded-corner arc; the canvas expands without moving the hotspot.
 - Shape kinds (use these, never raw colors): `paper` outlined light form, `fill` light form with outline over it (folds), `inverse` solid ink form with a paper-colored outline, `ink` solid, `solid` solid with outline (arrowheads), `line`, `dot` (solid circle with halo, always on top). `top=True` draws a detail above everything without halo.
 
 ## Grid and style numbers
