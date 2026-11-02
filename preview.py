@@ -1,13 +1,23 @@
 """HTML and PNG preview generation for cursor sets."""
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Callable
 
-from cursors import COMPACT_PREVIEW_SIZE, CURSORS, GRID, THEME, THEMES, build_svg, canvas_size
+from cursors import (
+    build_svg,
+    canvas_size,
+    ACTUAL_SIZE,
+    CURSORS,
+    GRID,
+    THEME,
+    THEMES,
+)
 
 LARGE_PIXELS_PER_UNIT = 2
 LARGE_PANEL_PADDING = 10
+PIXEL_ZOOM = 3
 
 PREVIEW_STYLES = """<style>
     body {
@@ -109,6 +119,11 @@ PREVIEW_STYLES = """<style>
         gap: 2px;
     }
 
+    .actual-stage img {
+        display: block;
+        image-rendering: pixelated;
+    }
+
     .meta {
         display: flex;
         flex-direction: column;
@@ -166,6 +181,7 @@ PREVIEW_STYLES = """<style>
 
     body.hide-large .view-large { display: none !important; }
     body.hide-compact .view-compact { display: none !important; }
+    body.hide-pixels .view-pixels { display: none !important; }
     body.hide-dark .theme-dark { display: none !important; }
     body.hide-light .theme-light { display: none !important; }
 
@@ -194,7 +210,8 @@ PREVIEW_STYLES = """<style>
 PREVIEW_TOOLBAR = """
 <div class="toolbar">
   <label><input type="checkbox" id="tog-large" checked> Large</label>
-  <label><input type="checkbox" id="tog-compact" checked> Compact</label>
+  <label><input type="checkbox" id="tog-compact" checked> Actual 1:1</label>
+  <label><input type="checkbox" id="tog-pixels" checked> Pixels</label>
   <label><input type="checkbox" id="tog-dark" checked> dark</label>
   <label><input type="checkbox" id="tog-light" checked> light</label>
   <button type="button" id="btn-shot" title="Capture visible cards as PNG (multi-page if tall)">Save PNG</button>
@@ -205,6 +222,7 @@ PREVIEW_TOOLBAR = """
   const map = {
     'tog-large': 'hide-large',
     'tog-compact': 'hide-compact',
+    'tog-pixels': 'hide-pixels',
     'tog-dark': 'hide-dark',
     'tog-light': 'hide-light',
   };
@@ -290,50 +308,63 @@ PREVIEW_TOOLBAR = """
 """
 
 
-def _theme_block(theme: str, svg: str, stage_style: str, compact: bool, panel_style: str = "") -> str:
-    """One theme row: the cursor on a light and a dark panel."""
-    view = "compact" if compact else "large"
+def _theme_block(theme: str, content: str, stage_style: str, view: str, panel_style: str = "") -> str:
+    """One theme row: the cursor (SVG or PNG markup) on a light and a dark panel."""
+    compact = view != "large"
     theme_class = "theme compact-theme" if compact else "theme"
     panel_class = "panel actual-panel" if compact else "panel"
     stage_class = "actual-stage" if compact else "stage"
     panels = "".join(
         f'<div class="{panel_class} {background}"{panel_style}>'
-        f'<div class="{stage_class}" {stage_style}>{svg}</div></div>'
+        f'<div class="{stage_class}" {stage_style}>{content}</div></div>'
         for background in ("light", "dark"))
     return (f'<div class="{theme_class} theme-{theme} view-{view}">'
             f'<div class="theme-label">{theme}</div>'
             f'<div class="row">{panels}</div></div>')
 
 
-def _card(name: str) -> str:
+def _png_markup(png: bytes, side: int, shown: int) -> str:
+    encoded = base64.b64encode(png).decode("ascii")
+    return f'<img src="data:image/png;base64,{encoded}" width="{shown}" height="{shown}" alt="">'
+
+
+def _card(name: str, render_png: Callable[[str, int, str], bytes]) -> str:
     hotspot_x, hotspot_y = CURSORS[name][0]
     canvas_width, canvas_height = canvas_size(name)
     stage_width, stage_height = canvas_width * LARGE_PIXELS_PER_UNIT, canvas_height * LARGE_PIXELS_PER_UNIT
     panel_style = (f' style="width:{stage_width + 2 * LARGE_PANEL_PADDING:g}px;'
                    f'height:{stage_height + 2 * LARGE_PANEL_PADDING:g}px"')
     large_stage = f'style="width:{stage_width:g}px;height:{stage_height:g}px"'
-    compact_scale = COMPACT_PREVIEW_SIZE / GRID
-    compact_stage = f'style="width:{canvas_width * compact_scale:g}px;height:{canvas_height * compact_scale:g}px"'
     large_blocks = [
         _theme_block(theme, build_svg(name, LARGE_PIXELS_PER_UNIT * GRID, theme=theme),
-                     large_stage, compact=False, panel_style=panel_style)
+                     large_stage, "large", panel_style=panel_style)
         for theme in THEMES]
-    compact_blocks = [
-        _theme_block(theme, build_svg(name, COMPACT_PREVIEW_SIZE, theme=theme), compact_stage, compact=True)
-        for theme in THEMES]
+    actual_side = round(max(canvas_width, canvas_height) * ACTUAL_SIZE / GRID)
+    zoomed_side = actual_side * PIXEL_ZOOM
+    pixel_blocks = []
+    actual_blocks = []
+    for theme in THEMES:
+        png = render_png(name, ACTUAL_SIZE, theme)
+        actual_blocks.append(_theme_block(theme, _png_markup(png, actual_side, actual_side),
+                                          f'style="width:{actual_side}px;height:{actual_side}px"', "compact"))
+        pixel_blocks.append(_theme_block(theme, _png_markup(png, actual_side, zoomed_side),
+                                         f'style="width:{zoomed_side}px;height:{zoomed_side}px"', "pixels"))
     return (f'<div class="card">'
             f'{"".join(large_blocks)}'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
             f'<div class="hotspot">hotspot {hotspot_x:g},{hotspot_y:g} · export: {THEME}</div>'
             f'</div>'
-            f'<div class="actual-label view-compact">Compact ({COMPACT_PREVIEW_SIZE}px)</div>'
-            f'{"".join(compact_blocks)}'
+            f'<div class="actual-label view-compact">Actual ({ACTUAL_SIZE}px, 1:1)</div>'
+            f'{"".join(actual_blocks)}'
+            f'<div class="actual-label view-pixels">Pixels ×{PIXEL_ZOOM}</div>'
+            f'{"".join(pixel_blocks)}'
             f'</div>')
 
 
-def preview_html() -> str:
-    cards = "".join(_card(name) for name in CURSORS)
+def preview_html(render_png: Callable[[str, int, str], bytes]) -> str:
+    """render_png(name, size, theme) returns the PNG bytes of one cursor at a fitted size."""
+    cards = "".join(_card(name, render_png) for name in CURSORS)
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
             + PREVIEW_STYLES
             + f'<div id="grid" class="grid">{cards}</div>'

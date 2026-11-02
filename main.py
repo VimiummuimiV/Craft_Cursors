@@ -7,7 +7,8 @@ Result: svg/, png/{dark,light}/, cur/{dark,light}/, preview.html, sheet_*.png, c
 Cursor geometry and shared style settings live in cursors.py. Each cursor is described on a
 32x32 grid, so changing shared thickness/colors rebuilds the entire set. Every cursor, halo
 included, must stay inside the allowed region (PADDING from each canvas edge); the build stops
-and lists the cursors that cross it.
+and lists the cursors that cross it. Every .cur size is grid-fitted separately (see gridfit.py),
+so lines and edges stay sharp at 100-300% display scaling, not only at the base size.
 
 Dependency for PNG/.cur and preview: PyQt6 (pip install PyQt6)
 """
@@ -20,18 +21,22 @@ import sys
 from pathlib import Path
 
 from cursors import (
-    COMPACT_PREVIEW_SIZE,
+    build_svg,
+    canvas_size,
+    ACTUAL_SIZE,
     CURSORS,
     CUR_SIZES,
     GRID,
     PADDING,
-    PNG_SIZE,
+    PNG_SIZES,
     THEME,
     THEMES,
-    build_svg,
-    canvas_size,
 )
-from preview import contact_sheet, preview_html
+from gridfit import pixel
+from preview import (
+    contact_sheet,
+    preview_html,
+)
 
 PADDING_CHECK_PIXELS_PER_UNIT = 10
 PADDING_TOLERANCE = 0.1   # one check pixel: antialiasing may spill into the neighbouring pixel
@@ -53,7 +58,7 @@ def _ensure_application() -> None:
 
 def hotspot(name: str, size: int) -> tuple[int, int]:
     hotspot_x, hotspot_y = CURSORS[name][0]
-    return round(hotspot_x * size / GRID), round(hotspot_y * size / GRID)
+    return pixel(hotspot_x * size / GRID), pixel(hotspot_y * size / GRID)
 
 
 def image_side(name: str, size: int) -> int:
@@ -64,20 +69,19 @@ def image_side(name: str, size: int) -> int:
 def render_image(name: str, size: int, theme: str | None = None):
     """Returns a square QImage; the cursor sits in its top left corner at size pixels per GRID units
     (a bigger canvas stays transparent below/right, so the hotspot position is the same).
-    Sizes and the paint rect are integers so the result stays pixel-aligned."""
+    The SVG is already fitted to size and written in pixels, so it maps 1:1 onto the image."""
     from PyQt6.QtCore import QByteArray, QRectF, Qt
     from PyQt6.QtGui import QImage, QPainter
     from PyQt6.QtSvg import QSvgRenderer
     _ensure_application()
     canvas_width, canvas_height = canvas_size(name)
-    renderer = QSvgRenderer(QByteArray(build_svg(name, theme=theme).encode("utf-8")))
+    renderer = QSvgRenderer(QByteArray(build_svg(name, size, theme=theme).encode("utf-8")))
     side = image_side(name, size)
     image = QImage(side, side, QImage.Format.Format_ARGB32)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    paint_rect = QRectF(0, 0, round(canvas_width * size / GRID), round(canvas_height * size / GRID))
-    renderer.render(painter, paint_rect)
+    renderer.render(painter, QRectF(0, 0, round(canvas_width * size / GRID), round(canvas_height * size / GRID)))
     painter.end()
     return image
 
@@ -137,7 +141,7 @@ def check_padding() -> None:
     problems = []
     for name in CURSORS:
         for side, margin in zip(SIDES, padding(name)):
-            if margin < PADDING - PADDING_TOLERANCE:
+            if round(margin, 2) < PADDING - PADDING_TOLERANCE:
                 problems.append(f"  {name}: {side} margin {margin:.2f} < {PADDING:g}")
     if problems:
         sys.exit("cursors cross the allowed region:\n" + "\n".join(problems))
@@ -145,12 +149,16 @@ def check_padding() -> None:
 
 # ============================== BUILD ======================================
 
+def preview_png(name: str, size: int, theme: str) -> bytes:
+    return png_bytes(render_image(name, size, theme=theme))
+
+
 def export_cursor(out: Path, name: str, theme: str) -> None:
     entries = []
     for size in CUR_SIZES:
-        png = png_bytes(render_image(name, size, theme=theme))
+        png = preview_png(name, size, theme)
         png_path = out / "png" / theme / f"{name}_{size}.png"
-        if size == PNG_SIZE:
+        if size in PNG_SIZES:
             png_path.write_bytes(png)
         else:
             png_path.unlink(missing_ok=True)
@@ -177,9 +185,9 @@ def main() -> None:
         }
     manifest["_meta"] = {"theme": THEME, "themes": list(THEMES)}
     (out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    (out / "preview.html").write_text(preview_html(), encoding="utf-8")
+    (out / "preview.html").write_text(preview_html(preview_png), encoding="utf-8")
     for theme in THEMES:
-        for suffix, size in (("", 96), ("_small", COMPACT_PREVIEW_SIZE)):
+        for suffix, size in (("", 96), ("_small", ACTUAL_SIZE)):
             contact_sheet(out / f"sheet_{theme}{suffix}.png", image_side, render_image,
                           theme=theme, pixels_per_unit=size)
     print(f"ready: {len(CURSORS)} cursors (themes={', '.join(THEMES)}) -> {out.resolve()}")
