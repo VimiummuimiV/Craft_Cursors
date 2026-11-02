@@ -39,6 +39,7 @@ class Shape:
       fill  - light form with an outline of thickness w drawn over the fill (folds stay visible)
       pline - thick light line with rounded ends and outline (fingers, thumb)
       ink   - solid dark form
+      solid - solid dark form with a rounded outline of thickness w (arrowheads, corners)
       line  - dark line with thickness w (symbols +, -, ^, etc.)
     top: drawn above everything else, without a halo (details inside forms)
     """
@@ -78,7 +79,7 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
             attrs = _stroke(halo, s.w + 2 * (SW + H), line_join=s.line_join)
         elif s.kind == "ink":
             attrs = _stroke(halo, 2 * H, fill=halo, line_join=s.line_join)
-        elif s.kind == "fill":
+        elif s.kind in ("fill", "solid"):
             attrs = _stroke(halo, s.w + 2 * H, fill=halo, line_join=s.line_join)
         else:
             attrs = _stroke(halo, s.w + 2 * H, line_join=s.line_join)
@@ -93,6 +94,8 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
             attrs = _flat(ink)
         elif s.kind == "fill":
             attrs = _stroke(ink, s.w, fill=paper, line_join=s.line_join)
+        elif s.kind == "solid":
+            attrs = _stroke(ink, s.w, fill=ink, line_join=s.line_join)
         else:
             attrs = _stroke(ink, s.w, line_join=s.line_join)
         out.append(s.tag(attrs))
@@ -437,11 +440,6 @@ _CROP_FRAME_ARM = 7
 _CROP_FRAME_HOTSPOT = (LINE_INSET, LINE_INSET)
 
 
-def _solid_polygon(path: str) -> list[Shape]:
-    """Solid form with rounded corners: the flat fill plus an outline of the line thickness."""
-    return [path_shape(path, "ink"), path_shape(path, "line", SW)]
-
-
 def crop_frame() -> list[Shape]:
     """Crop tool: arrow corner at the top left plus three corner brackets of the frame."""
     near, far, arm = LINE_INSET, LINE_FAR_EDGE, _CROP_FRAME_ARM
@@ -450,7 +448,7 @@ def crop_frame() -> list[Shape]:
     bottom_right = f"M{_number(far)} {_number(far - arm)} V{_number(far)} H{_number(far - arm)}"
     bottom_left = f"M{_number(near + arm)} {_number(far)} H{_number(near)} V{_number(far - arm)}"
     return [
-        *_solid_polygon(triangle),
+        path_shape(triangle, "solid", SW),
         path_shape(_path(top_right, bottom_right, bottom_left), "line", SW),
     ]
 
@@ -478,8 +476,8 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     shafts = [f"M{_number(_CANVAS_CENTER - axis_x * shaft_reach)} {_number(_CANVAS_CENTER - axis_y * shaft_reach)} "
               f"L{_number(_CANVAS_CENTER + axis_x * shaft_reach)} {_number(_CANVAS_CENTER + axis_y * shaft_reach)}"
               for axis_x, axis_y in axes]
-    heads = [shape for axis_x, axis_y in axes for sign in (-1, 1)
-             for shape in _solid_polygon(_arrow_head(sign * axis_x, sign * axis_y))]
+    heads = [path_shape(_arrow_head(sign * axis_x, sign * axis_y), "solid", SW)
+             for axis_x, axis_y in axes for sign in (-1, 1)]
     return [path_shape(_path(*shafts), "line", SW), *heads]
 
 
