@@ -19,7 +19,6 @@ H = 2                # halo width, whole pixels at the base size
 # Windows asks for 32 px at 100% and 40/48/56/64/72/80/96 px at 125-300% scaling; 112 and 128 serve the
 # larger cursor-size settings. Each entry is grid-fitted on its own, so every size stays sharp.
 CUR_SIZES = (32, 40, 48, 56, 64, 72, 80, 96, 112, 128)
-PNG_SIZES = (32, 64, 96)   # whole multiples of the base size, exported as PNG next to the .cur files
 ACTUAL_SIZE = GRID         # size shown 1:1 in previews
 
 # Allowed region: every cursor, halo included, stays at least PADDING away from all four canvas edges.

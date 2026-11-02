@@ -2,7 +2,7 @@
 Generator for a unified cursor set.
 
 Usage:   python main.py [output_folder]
-Result: svg/, png/{dark,light}/, cur/{dark,light}/, preview.html, sheet_*.png, cursors.json
+Result: svg/, png/{dark,light}/<size>/, cur/{dark,light}/<size>/ and cur/{dark,light}/multi/, preview.html, sheet_*.png, cursors.json
 
 Cursor geometry and shared style settings live in cursors.py. Each cursor is described on a
 32x32 grid, so changing shared thickness/colors rebuilds the entire set. Every cursor, halo
@@ -28,7 +28,6 @@ from cursors import (
     CUR_SIZES,
     GRID,
     PADDING,
-    PNG_SIZES,
     THEME,
     THEMES,
 )
@@ -38,6 +37,7 @@ from preview import (
     preview_html,
 )
 
+MULTI_SIZE_FOLDER = "multi"   # one .cur per cursor with every size inside, for installing in Windows
 PADDING_CHECK_PIXELS_PER_UNIT = 10
 PADDING_TOLERANCE = 0.1   # one check pixel: antialiasing may spill into the neighbouring pixel
 SIDES = ("left", "top", "right", "bottom")
@@ -157,23 +157,23 @@ def export_cursor(out: Path, name: str, theme: str) -> None:
     entries = []
     for size in CUR_SIZES:
         png = preview_png(name, size, theme)
-        png_path = out / "png" / theme / f"{name}_{size}.png"
-        if size in PNG_SIZES:
-            png_path.write_bytes(png)
-        else:
-            png_path.unlink(missing_ok=True)
         hotspot_x, hotspot_y = hotspot(name, size)
-        entries.append((image_side(name, size), hotspot_x, hotspot_y, png))
-    write_cur(out / "cur" / theme / f"{name}.cur", entries)
+        entry = (image_side(name, size), hotspot_x, hotspot_y, png)
+        (out / "png" / theme / str(size) / f"{name}.png").write_bytes(png)
+        write_cur(out / "cur" / theme / str(size) / f"{name}.cur", [entry])
+        entries.append(entry)
+    write_cur(out / "cur" / theme / MULTI_SIZE_FOLDER / f"{name}.cur", entries)
 
 
 def main() -> None:
     check_padding()
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
     (out / "svg").mkdir(parents=True, exist_ok=True)
-    for kind in ("png", "cur"):
-        for theme in THEMES:
-            (out / kind / theme).mkdir(parents=True, exist_ok=True)
+    for theme in THEMES:
+        for size in CUR_SIZES:
+            for kind in ("png", "cur"):
+                (out / kind / theme / str(size)).mkdir(parents=True, exist_ok=True)
+        (out / "cur" / theme / MULTI_SIZE_FOLDER).mkdir(parents=True, exist_ok=True)
     manifest = {}
     for name in CURSORS:
         (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")

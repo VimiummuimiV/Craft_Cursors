@@ -10,7 +10,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - `cursors.py` - style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
 - `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`). Knows nothing about cursors.
 - `main.py` - build: padding check, SVG/PNG/.cur export, manifest. `preview.py` - preview.html and contact sheets.
-- Output: `svg/`, `png/{dark,light}/`, `cur/{dark,light}/`, `preview.html`, `sheet_*.png`, `cursors.json`. Run: `python main.py [out]` (needs PyQt6).
+- Output: `svg/`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `python main.py [out]` (needs PyQt6).
 
 ## Look
 
@@ -42,7 +42,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 ## Grid fitting per size
 
-- `.cur` carries `CUR_SIZES = 32, 40, 48, 56, 64, 72, 80, 96, 112, 128`: Windows picks the exact size at 100-300% scaling and the cursor-size slider, so the OS never resamples. PNG export: `PNG_SIZES = 32, 64, 96`.
+- `.cur` carries `CUR_SIZES = 32, 40, 48, 56, 64, 72, 80, 96, 112, 128`: Windows picks the exact size at 100-300% scaling and the cursor-size slider, so the OS never resamples. Every size is also exported as PNG and as a single-size .cur into its own folder.
 - `build_svg(name, size)` fits the geometry to `size` and writes it in pixels: stroke = `SW` rounded half up, halo = `H` rounded half down (whole pixels), odd stroke centers on pixel centers, unrotated endpoints snap, control points follow their endpoint.
 - Geometry passed to the fitter uses absolute path commands only (`M L H V C S Q T A Z`); relative commands raise an error.
 - `render_image` must call `build_svg(name, size, ...)` with the real size, never the default, otherwise the SVG is scaled unfitted.
