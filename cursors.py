@@ -41,7 +41,7 @@ THEME = "dark"       # default export theme; change to "light" for the inverse
 _TOOL_TIP_ANGLE = 45
 
 # Shared rendering and canvas geometry.
-_STROKED_KINDS = ("fill", "solid", "line")   # kinds whose outline is centered on the path
+_STROKED_KINDS = ("fill", "solid", "line", "inverse")   # kinds whose outline is centered on the path
 _CANVAS_CENTER = GRID // 2
 _CENTER_DOT_RADIUS = 2
 
@@ -58,6 +58,7 @@ class Shape:
     kind:
       paper - light form with a dark outline (closed path, circle)
       fill  - light form with an outline of thickness SW drawn over the fill (folds stay visible)
+      inverse - solid ink form with a paper-colored outline
       ink   - solid dark form
       solid - solid dark form with an outline of thickness SW (arrowheads, corners)
       line  - dark line with thickness SW (symbols +, -, ^, etc.)
@@ -95,7 +96,7 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
         on_center = shape.kind in _STROKED_KINDS and fit.stroke % 2 == 1
         data = fit.path(shape.path, on_center, origin, snap=not rotated)
         return lambda attrs, grow=0.0: f'<path d="{data}" {attrs}{rotation}/>'
-    outline_reach = fit.stroke if shape.kind == "paper" else fit.stroke / 2 if shape.kind in _STROKED_KINDS else 0
+    outline_reach = fit.stroke if shape.kind in ("paper", "inverse") else fit.stroke / 2 if shape.kind in _STROKED_KINDS else 0
     center_x, center_y, radius = fit.circle(shape.circle, origin, not rotated, outline_reach)
     return lambda attrs, grow=0.0: (f'<circle cx="{number(center_x)}" cy="{number(center_y)}" '
                                     f'r="{number(radius + grow)}" {attrs}{rotation}/>')
@@ -112,7 +113,7 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     out: list[str] = []
     # 1) halo
     for shape, tag in body:
-        if shape.kind == "paper":
+        if shape.kind in ("paper", "inverse"):
             attrs = _stroke(halo, 2 * (stroke + halo_width), halo, shape.sharp)
         elif shape.kind == "ink":
             attrs = _stroke(halo, 2 * halo_width, halo, shape.sharp)
@@ -125,6 +126,8 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     for shape, tag in body:
         if shape.kind == "paper":
             attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
+        elif shape.kind == "inverse":
+            attrs = _stroke(paper, 2 * stroke, paper, shape.sharp)
         elif shape.kind == "ink":
             attrs = _flat(ink)
         elif shape.kind == "fill":
@@ -138,11 +141,15 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     for shape, tag in body:
         if shape.kind == "paper":
             out.append(tag(_flat(paper)))
+        elif shape.kind == "inverse":
+            out.append(tag(_flat(ink)))
     # 4) top details
     for shape, tag in details:
         if shape.kind == "dot":
             out.append(tag(_flat(halo), halo_width))
             out.append(tag(_flat(ink)))
+        elif shape.kind == "inverse":
+            out.append(tag(_stroke(paper, stroke, ink, shape.sharp)))
         elif shape.kind == "ink":
             out.append(tag(_flat(ink)))
         else:
@@ -267,6 +274,16 @@ def arrow() -> list[Shape]:
     bottom_left_corner = "C7 27.1 6 27 6 26"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
     return [path_shape(outline, "paper")]
+
+
+def path_selection() -> list[Shape]:
+    """Path Selection uses the default pointer silhouette."""
+    return arrow()
+
+
+def direct_selection() -> list[Shape]:
+    """White pointer for selecting and editing path anchors."""
+    return [replace(shape, kind="inverse") for shape in arrow()]
 
 
 _LENS_RADIUS = 8
@@ -641,6 +658,8 @@ CANVAS: dict[str, tuple[float, float]] = {}
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "arrow": ((7, 5), arrow),
+    "path_selection": ((7, 5), path_selection),
+    "direct_selection": ((7, 5), direct_selection),
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),

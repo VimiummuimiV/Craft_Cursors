@@ -16,10 +16,10 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 - One unified look for every program: the same tool is the same cursor in PhotoCraft and VectorCraft. Windows 11 tailless concept, thin outline, no light/dark variants of the design itself (the two themes are only the color inversion).
 - Themes: `dark` = white outline on black paper (default export), `light` = black on white. Halo has the paper color.
-- Glyph only, or the default cursor plus one small badge. No clutter, no blobs, no different cursor per tool unless the tool truly needs it.
+- Glyph only, or the default cursor plus one small badge. No clutter, no blobs, no different cursor per tool unless the tool truly needs it. Path Selection reuses the standard pointer; Direct Selection uses the same silhouette with an inverse fill/outline.
 - No red hotspot dot in SVGs or previews. No badges on the default arrow.
 - Move/resize cursors follow the W11 concept: separate arrowheads, vertical and horizontal pairs.
-- Shape kinds (use these, never raw colors): `paper` outlined light form, `fill` light form with outline over it (folds), `ink` solid, `solid` solid with outline (arrowheads), `line`, `dot` (solid circle with halo, always on top). `top=True` draws a detail above everything without halo.
+- Shape kinds (use these, never raw colors): `paper` outlined light form, `fill` light form with outline over it (folds), `inverse` solid ink form with a paper-colored outline, `ink` solid, `solid` solid with outline (arrowheads), `line`, `dot` (solid circle with halo, always on top). `top=True` draws a detail above everything without halo.
 
 ## Grid and style numbers
 
