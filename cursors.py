@@ -290,10 +290,15 @@ def direct_selection() -> list[Shape]:
 
 
 def text_cursor(vertical: bool = False) -> list[Shape]:
-    """I-beam insertion cursor; vertical type uses the same mark rotated by 90 degrees."""
-    beam = _path("M13 7 H19", "M16 7 V25", "M13 25 H19")
+    """I-beam insertion cursor sized to the crosshair's outer extents."""
+    center, near, far, cap_half = _CANVAS_CENTER, LINE_INSET, LINE_FAR_EDGE, 3
+    beam = _path(f"M{center - cap_half} {near} H{center + cap_half}",
+                 f"M{center} {near} V{far}",
+                 f"M{center - cap_half} {far} H{center + cap_half}")
     if vertical:
-        beam = _path("M7 13 V19", "M7 16 H25", "M25 13 V19")
+        beam = _path(f"M{near} {center - cap_half} V{center + cap_half}",
+                     f"M{near} {center} H{far}",
+                     f"M{far} {center - cap_half} V{center + cap_half}")
     return [path_shape(beam, "line", sharp=True)]
 
 
