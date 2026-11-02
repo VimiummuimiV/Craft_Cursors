@@ -14,7 +14,7 @@ from gridfit import (
 # ============================== STYLE ======================================
 GRID = 32            # logical cursor grid: one unit is exactly one pixel at the base size
 SW = 2               # thickness of all outlines and lines, whole pixels at the base size
-H = 1                # halo width, whole pixels at the base size
+H = 2                # halo width, whole pixels at the base size
 # Windows asks for 32 px at 100% and 40/48/56/64/72/80/96 px at 125-300% scaling; 112 and 128 serve the
 # larger cursor-size settings. Each entry is grid-fitted on its own, so every size stays sharp.
 CUR_SIZES = (32, 40, 48, 56, 64, 72, 80, 96, 112, 128)
@@ -58,7 +58,7 @@ class Shape:
     kind:
       paper - light form with a dark outline (closed path, circle)
       fill  - light form with an outline of thickness SW drawn over the fill (folds stay visible)
-      inverse - solid ink form expanded to the paper-outline outer, paper-colored outline from remaining halo
+      inverse - solid ink form with paper-colored halo only (like ink, colors swapped; arrow family)
       ink   - solid dark form
       solid - solid dark form with an outline of thickness SW (arrowheads, corners)
       line  - dark line with thickness SW (symbols +, -, ^, etc.)
@@ -113,8 +113,10 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     out: list[str] = []
     # 1) halo
     for shape, tag in body:
-        if shape.kind in ("paper", "inverse"):
+        if shape.kind == "paper":
             attrs = _stroke(halo, 2 * (stroke + halo_width), halo, shape.sharp)
+        elif shape.kind == "inverse":
+            attrs = _stroke(ink, 2 * halo_width, ink, shape.sharp)  # pure opposite of ink
         elif shape.kind == "ink":
             attrs = _stroke(halo, 2 * halo_width, halo, shape.sharp)
         elif shape.kind in ("fill", "solid"):
@@ -127,8 +129,7 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
         if shape.kind == "paper":
             attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
         elif shape.kind == "inverse":
-            # solid expands to path+SW (matches paper outline outer); outer H of halo is the outline
-            attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
+            attrs = _flat(paper)
         elif shape.kind == "ink":
             attrs = _flat(ink)
         elif shape.kind == "fill":
@@ -272,7 +273,7 @@ def arrow() -> list[Shape]:
     concave_lower_edge = "C16 22.4 11.5 24.4 8 26.5"
     bottom_left_corner = "C7 27.1 6 27 6 26"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
-    return [path_shape(outline, "paper")]
+    return [path_shape(outline, "ink")]
 
 
 def path_selection() -> list[Shape]:
