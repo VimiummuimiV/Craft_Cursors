@@ -289,6 +289,14 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
+def text_cursor(vertical: bool = False) -> list[Shape]:
+    """I-beam insertion cursor; vertical type uses the same mark rotated by 90 degrees."""
+    beam = _path("M13 7 H19", "M16 7 V25", "M13 25 H19")
+    if vertical:
+        beam = _path("M7 13 V19", "M7 16 H25", "M25 13 V19")
+    return [path_shape(beam, "line", sharp=True)]
+
+
 _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 
@@ -669,6 +677,8 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "path_selection": (_ARROW_HOTSPOT, path_selection),
     "direct_selection": (_ARROW_HOTSPOT, direct_selection),
     "corner": (_ARROW_HOTSPOT, corner),
+    "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), text_cursor),
+    "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: text_cursor(vertical=True)),
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),
