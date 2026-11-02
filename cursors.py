@@ -179,9 +179,38 @@ def _direction(origin: tuple[float, float], target: tuple[float, float]) -> tupl
     return delta_x / distance, delta_y / distance, distance
 
 
+_MAX_CURVE_SWEEP = math.pi / 2   # one cubic per corner up to this angle, two (three nodes) beyond it
+
+
+def _corner_curves(start: tuple[float, float], end: tuple[float, float], corner: tuple[float, float],
+                   arc_radius: float, sweep: float) -> str:
+    """Circular corner arc as one cubic, or two when it turns more than _MAX_CURVE_SWEEP."""
+    start_x, start_y, _ = _direction(corner, start)
+    end_x, end_y, _ = _direction(corner, end)
+    # travel directions: start -> corner at the start, corner -> end at the end
+    tangents = [(-start_x, -start_y), (end_x, end_y)]
+    points = [start, end]
+    if sweep > _MAX_CURVE_SWEEP:
+        bisector_x, bisector_y = start_x + end_x, start_y + end_y
+        length = math.hypot(bisector_x, bisector_y)
+        middle_tangent = (end_x - start_x, end_y - start_y)
+        tangent_length = math.hypot(*middle_tangent)
+        center_distance = arc_radius / math.sin((math.pi - sweep) / 2)
+        points.insert(1, (corner[0] + bisector_x / length * (center_distance - arc_radius),
+                          corner[1] + bisector_y / length * (center_distance - arc_radius)))
+        tangents.insert(1, (middle_tangent[0] / tangent_length, middle_tangent[1] / tangent_length))
+    handle = 4 / 3 * math.tan(sweep / (len(points) - 1) / 4) * arc_radius
+    curves = []
+    for (from_point, from_tangent), (to_point, to_tangent) in zip(zip(points, tangents), zip(points[1:], tangents[1:])):
+        curves.append(f"C{number(from_point[0] + from_tangent[0] * handle)} {number(from_point[1] + from_tangent[1] * handle)} "
+                      f"{number(to_point[0] - to_tangent[0] * handle)} {number(to_point[1] - to_tangent[1] * handle)} "
+                      f"{number(to_point[0])} {number(to_point[1])}")
+    return " ".join(curves)
+
+
 def rounded_polygon(points: list[tuple[float, float]], radius: float | list[float]) -> str:
-    """Closed path through `points` with every corner replaced by a circular arc.
-    radius is shared by all corners or given per corner; 0 keeps a corner sharp."""
+    """Closed path through `points` with every corner replaced by a circular arc drawn as one or two cubics
+    (two or three nodes). radius is shared by all corners or given per corner; 0 keeps a corner sharp."""
     count = len(points)
     radii = [radius] * count if isinstance(radius, (int, float)) else list(radius)
     segments: list[str] = []
@@ -195,12 +224,10 @@ def rounded_polygon(points: list[tuple[float, float]], radius: float | list[floa
         half_angle = math.acos(max(-1.0, min(1.0, previous_x * next_x + previous_y * next_y))) / 2
         cut = min(corner_radius / math.tan(half_angle), previous_length / 2, next_length / 2)
         arc_radius = cut * math.tan(half_angle)
-        turn = (-previous_x) * next_y - (-previous_y) * next_x
         start = (corner[0] + previous_x * cut, corner[1] + previous_y * cut)
         end = (corner[0] + next_x * cut, corner[1] + next_y * cut)
-        segments.append(
-            f"{command}{number(start[0])} {number(start[1])} "
-            f"A{number(arc_radius)} {number(arc_radius)} 0 0 {int(turn > 0)} {number(end[0])} {number(end[1])}")
+        segments.append(f"{command}{number(start[0])} {number(start[1])} "
+                        + _corner_curves(start, end, corner, arc_radius, math.pi - 2 * half_angle))
     return _path(*segments, "Z")
 
 
@@ -363,7 +390,6 @@ _MAGNET_POLE_Y = -4.33       # pole faces
 _MAGNET_POLE_LENGTH = 5.47
 _MAGNET_POLE_GAP = SW        # visible gap between a pole and the body
 _MAGNET_DOT_RADIUS = 2
-_MAGNET_DOT_OFFSET = 0.8
 _MAGNET_TRANSFORM = (*_MAGNET_ORIGIN, _TOOL_TIP_ANGLE)
 
 
@@ -376,7 +402,7 @@ def magnet() -> list[Shape]:
     poles = [rectangle(left, pole_top, left + _MAGNET_ARM, _MAGNET_POLE_Y) for left in (-outer, inner)]
     return [
         path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True),
-        _dot(0, _MAGNET_DOT_OFFSET, _MAGNET_DOT_RADIUS, transform=_MAGNET_TRANSFORM),
+        _dot(*_MAGNET_ORIGIN, _MAGNET_DOT_RADIUS),
     ]
 
 
