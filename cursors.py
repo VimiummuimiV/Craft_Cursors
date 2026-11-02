@@ -289,7 +289,7 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
-_CORNER_CURSOR_CANVAS = (36, 36)
+_ARROW_CURSOR_CANVAS = (36, 36)
 _CORNER_MARK = "M30 19 C30 25 27 28 21 28"
 
 
@@ -664,10 +664,6 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
     },
 }
 
-# Canvas size in grid units, only for cursors that do not fit 32x32 (name -> (width, height)).
-CANVAS: dict[str, tuple[float, float]] = {"corner": _CORNER_CURSOR_CANVAS}
-
-
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "arrow": (_ARROW_HOTSPOT, arrow),
@@ -696,6 +692,12 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "fill": (_DROP_HOTSPOT, fill),
 }
 
+# Keep the arrow family aligned as badges and marks are added.
+CANVAS: dict[str, tuple[float, float]] = {
+    name: _ARROW_CURSOR_CANVAS
+    for name in ("arrow", "path_selection", "direct_selection", "corner")
+}
+
 
 def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | None = None) -> None:
     """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base.
@@ -704,8 +706,10 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
     placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0)) for shape in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
-    if canvas:
+    if canvas is not None:
         CANVAS[name] = canvas
+    elif base in CANVAS:
+        CANVAS[name] = CANVAS[base]
 
 
 for name, (base, badge) in {
@@ -716,9 +720,10 @@ for name, (base, badge) in {
     "pen_convert": ("pen", "caret"),
     "pen_close": ("pen", "ring"),
     "color_sampler": ("eyedropper", "ring"),
+    "direct_selection_add": ("direct_selection", "plus"),
+    "direct_selection_delete": ("direct_selection", "minus"),
 }.items():
     add_badged(name, base, badge)
-# other tools reuse the same badges, e.g.: add_badged("select_add", "select", "plus")
 
 
 def canvas_size(name: str) -> tuple[float, float]:
