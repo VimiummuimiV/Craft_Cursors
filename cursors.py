@@ -225,14 +225,12 @@ def zoom(sign: str) -> list[Shape]:
                    "Z")
     horizontal_bar = f"M{center - arm} {center} H{center + arm}"
     vertical_bar = f"M{center} {center - arm} V{center + arm}"
-    shapes = [
+    bars = _path(horizontal_bar, vertical_bar) if sign == "+" else horizontal_bar
+    return [
         Shape("circle", f'cx="{center}" cy="{center}" r="{_LENS_RADIUS}"', "paper"),
         path_shape(handle, "ink"),
-        path_shape(horizontal_bar, "line", SW, top=True),
+        path_shape(bars, "line", SW, top=True),
     ]
-    if sign == "+":
-        shapes.append(path_shape(vertical_bar, "line", SW, top=True))
-    return shapes
 
 
 # Eyedropper, pen nib and knife are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees.
@@ -245,9 +243,9 @@ _TOOL_TIP_XF = f"translate({_number(_TOOL_TIP[0])} {_number(_TOOL_TIP[1])}) rota
 def eyedropper() -> list[Shape]:
     tip, neck, tube_end = "M0 0", "-7", "-17.5"
     tube = _path(tip, f"L-2.7 {neck}", f"L-2.7 {tube_end}", f"L2.7 {tube_end}", f"L2.7 {neck}", "Z")
+    cap = rounded_polygon([(-4.5, -21.5), (4.5, -21.5), (4.5, -17), (-4.5, -17)], 1.2)
     return [
-        path_shape(tube, "paper", xf=_TOOL_TIP_XF),
-        Shape("rect", 'x="-4.5" y="-21.5" width="9" height="4.5" rx="1.2"', "paper", xf=_TOOL_TIP_XF),
+        path_shape(_path(tube, cap), "paper", xf=_TOOL_TIP_XF),
         Shape("rect", 'x="-3.5" y="-31" width="7" height="10.5" rx="3.5"', "ink", xf=_TOOL_TIP_XF),
     ]
 
@@ -374,12 +372,10 @@ def magnet() -> list[Shape]:
     body_end = pole_top - _MAGNET_POLE_GAP
     body = _path(f"M{-outer} {body_end} V{bend} A{outer} {outer} 0 0 1 {outer} {bend} V{body_end}",
                  f"H{inner} V{bend} A{inner} {inner} 0 0 0 {-inner} {bend} V{body_end} Z")
-    poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"',
-                   "ink", xf=_MAGNET_XF, line_join="miter")
+    poles = [f"M{_number(x)} {_number(pole_top)} h{_MAGNET_ARM} v{_MAGNET_POLE_LENGTH} h{-_MAGNET_ARM} Z"
              for x in (-outer, inner)]
     return [
-        path_shape(body, "ink", xf=_MAGNET_XF, line_join="miter"),
-        *poles,
+        path_shape(_path(body, *poles), "ink", xf=_MAGNET_XF, line_join="miter"),
         *_dot(0, _MAGNET_DOT_OFFSET, _MAGNET_DOT_RADIUS, xf=_MAGNET_XF),
     ]
 
@@ -405,10 +401,8 @@ def artboard() -> list[Shape]:
     """Artboard cursor with the stepped lower-right frame; the line ends touch the allowed region."""
     near, far = _number(LINE_INSET), _number(LINE_FAR_EDGE)
     outline = f"M{near} 16 H11 M21 16 H{far} V{far} M16 {near} V11 M16 21 V{far} H{far}"
-    detail = f"M{near} 16 H11 M16 {near} V11 M21 16 H{far} V{far} H16 V21"
     return [
         path_shape(outline, "line", SW),
-        path_shape(detail, "line", SW, top=True),
         *_dot(_CANVAS_CENTER, _CANVAS_CENTER, _CENTER_DOT_RADIUS),
     ]
 
@@ -476,9 +470,8 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     shafts = [f"M{_number(_CANVAS_CENTER - axis_x * shaft_reach)} {_number(_CANVAS_CENTER - axis_y * shaft_reach)} "
               f"L{_number(_CANVAS_CENTER + axis_x * shaft_reach)} {_number(_CANVAS_CENTER + axis_y * shaft_reach)}"
               for axis_x, axis_y in axes]
-    heads = [path_shape(_arrow_head(sign * axis_x, sign * axis_y), "solid", SW)
-             for axis_x, axis_y in axes for sign in (-1, 1)]
-    return [path_shape(_path(*shafts), "line", SW), *heads]
+    heads = [_arrow_head(sign * axis_x, sign * axis_y) for axis_x, axis_y in axes for sign in (-1, 1)]
+    return [path_shape(_path(*shafts), "line", SW), path_shape(_path(*heads), "solid", SW)]
 
 
 _WAND_TILT = 32
@@ -526,10 +519,7 @@ def magic_wand() -> list[Shape]:
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    return [
-        path_shape(star(_WAND_STAR_RADIUS), "ink", xf=transform),
-        path_shape(stick, "ink", xf=transform),
-    ]
+    return [path_shape(_path(star(_WAND_STAR_RADIUS), stick), "ink", xf=transform)]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
