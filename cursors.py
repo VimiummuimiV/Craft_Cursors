@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass, replace
 from typing import Callable
 
@@ -176,11 +175,6 @@ def _circle(center_x: float, center_y: float, radius: float, kind: str, top: boo
 def _dot(center_x: float, center_y: float, radius: float,
          transform: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> Shape:
     return _circle(center_x, center_y, radius, "dot", transform=transform)
-
-
-def _scaled_path(path_data: str, factor: float) -> str:
-    """Scales every number of an absolute path (no arcs) around the origin."""
-    return re.sub(r"-?\d*\.?\d+", lambda match: number(float(match.group()) * factor), path_data)
 
 
 def _direction(origin: tuple[float, float], target: tuple[float, float]) -> tuple[float, float, float]:
@@ -528,11 +522,10 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
 
 
-_SCISSORS_TILT = 32
-_SCISSORS_HOTSPOT = (10, 6)
+_SCISSORS_TILT = 45
+_SCISSORS_HOTSPOT = (7, 7)
 _SCISSORS_TRANSFORM = (*_SCISSORS_HOTSPOT, -_SCISSORS_TILT)
-_SCISSORS_SCALE = 0.96
-_SCISSORS_PATH = _scaled_path(
+_SCISSORS_PATH = _path(
     "M0 16.25 L-1.25 18.41 C-1.03 19.41 -1.17 20.49 -1.72 21.45 "
     "C-2.89 23.48 -5.5 24.18 -7.54 23.01 C-9.58 21.83 -10.27 19.22 "
     "-9.1 17.19 C-7.99 15.27 -5.62 14.54 -3.64 15.44 L-2.06 12.69 "
@@ -547,7 +540,6 @@ _SCISSORS_PATH = _scaled_path(
     "M-4.45 17.66 C-5.37 17.13 -6.54 17.45 -7.06 18.36 "
     "C-7.59 19.27 -7.28 20.44 -6.36 20.97 C-5.45 21.5 -4.28 21.19 "
     "-3.75 20.27 C-3.22 19.36 -3.54 18.19 -4.45 17.66 Z",
-    _SCISSORS_SCALE,
 )
 
 
