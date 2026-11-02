@@ -447,6 +447,34 @@ def crop_frame() -> list[Shape]:
     ]
 
 
+# Note tool: a corner bracket marks the hotspot, the sheet with text lines and a folded corner sits inside it.
+# The last, half-length text line is level with the top edge of the fold. Line centers sit on whole grid units,
+# so at 32 px every 1.8 thick line covers two pixels almost fully.
+_NOTE_SHEET = (9, 9, 25, 26)    # left, top, right, bottom
+_NOTE_FOLD = 5
+_NOTE_TEXT_INSET = 4
+_NOTE_TEXT_STEP = 4
+_NOTE_BRACKET_INSET = 4    # bracket corner, also the hotspot
+_NOTE_BRACKET_END = 27
+
+
+def note() -> list[Shape]:
+    left, top, right, bottom = _NOTE_SHEET
+    near, end, fold = _NOTE_BRACKET_INSET, _NOTE_BRACKET_END, _NOTE_FOLD
+    bracket = f"M{end} {near} H{near} V{end}"
+    sheet = _path(f"M{left} {top}", f"H{right}", f"V{bottom - fold}", f"L{right - fold} {bottom}", f"H{left}", "Z")
+    flap = f"M{right - fold} {bottom} V{bottom - fold} H{right}"
+    text_start, text_end = left + _NOTE_TEXT_INSET, right - _NOTE_TEXT_INSET
+    text_rows = [bottom - fold - _NOTE_TEXT_STEP * step for step in (2, 1, 0)]
+    text = _path(f"M{text_start} {text_rows[0]} H{text_end}", f"M{text_start} {text_rows[1]} H{text_end}",
+                 f"M{text_start} {text_rows[2]} H{_number((text_start + text_end) / 2)}")
+    return [
+        path_shape(bracket, "line", SW),
+        path_shape(sheet, "paper"),
+        path_shape(_path(flap, text), "line", SW, top=True),
+    ]
+
+
 # Direction cursors: solid arrowheads at the allowed region edge, joined by shafts through the canvas center.
 _ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
 _ARROW_HEAD_LENGTH = 5.5
@@ -608,6 +636,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
     "crop_frame": (_CROP_FRAME_HOTSPOT, crop_frame),
+    "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), note),
     "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=False)),
     "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=False, vertical=True)),
     "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=True)),
