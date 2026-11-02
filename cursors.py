@@ -312,7 +312,8 @@ _MAGNET_BEND_Y = -15.96
 _MAGNET_POLE_Y = -4.33       # pole faces
 _MAGNET_POLE_LENGTH = 5.47
 _MAGNET_POLE_GAP = SW        # visible gap between a pole and the body
-_MAGNET_DOT_RADIUS = 1.82
+_MAGNET_DOT_RADIUS = 2
+_MAGNET_DOT_OFFSET = 0.8
 _MAGNET_XF = f"translate({_MAGNET_ORIGIN[0]} {_MAGNET_ORIGIN[1]}) rotate({_TOOL_TIP_ANGLE})"
 
 
@@ -325,7 +326,7 @@ def magnet() -> list[Shape]:
     poles = [Shape("rect", f'x="{x}" y="{pole_top}" width="{_MAGNET_ARM}" height="{_MAGNET_POLE_LENGTH}"',
                    "ink", xf=_MAGNET_XF, line_join="miter")
              for x in (-outer, inner)]
-    dot = Shape("circle", f'cx="0" cy="0" r="{_MAGNET_DOT_RADIUS}"', "ink", xf=_MAGNET_XF)
+    dot = Shape("circle", f'cx="0" cy="{_MAGNET_DOT_OFFSET}" r="{_MAGNET_DOT_RADIUS}"', "ink", xf=_MAGNET_XF)
     return [path_shape(body, "ink", xf=_MAGNET_XF, line_join="miter"), *poles, dot]
 
 
