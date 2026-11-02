@@ -78,6 +78,8 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
             attrs = _stroke(halo, s.w + 2 * (SW + H), line_join=s.line_join)
         elif s.kind == "ink":
             attrs = _stroke(halo, 2 * H, fill=halo, line_join=s.line_join)
+        elif s.kind == "fill":
+            attrs = _stroke(halo, s.w + 2 * H, fill=halo, line_join=s.line_join)
         else:
             attrs = _stroke(halo, s.w + 2 * H, line_join=s.line_join)
         out.append(s.tag(attrs))
