@@ -250,7 +250,7 @@ def eyedropper() -> list[Shape]:
 # Both outlines start and end at the wrist; each part is listed in drawing order.
 _HAND_WRIST = "14.45 28.3"
 
-_HAND_OPEN_PARTS = {
+_GRAB_PARTS = {
     "wrist_to_thumb": "C 11.85 28.3 8.8 22.48 6.56 20.3",
     "thumb": "C 5.27 19.05 3.22 18.6 3.99 16.51 C 4.61 14.81 7.24 14.54 9.2 15.79 "
              "C 10.62 16.69 11.76 17.86 11.76 17.86",
@@ -264,7 +264,7 @@ _HAND_OPEN_PARTS = {
                      "C 28.05 8.81 28.46 10.11 27.98 11.72 C 27.5 13.34 27.08 14.7 26.34 16.96",
     "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
 }
-_HAND_CLOSED_PARTS = {
+_GRABBING_PARTS = {
     "wrist_to_thumb": "C 12.35 28.3 8.67 22.83 8.13 19.75",
     "thumb": "C 7.88 18.26 11.18 15.79 11.18 15.79 L 11.76 17.86",
     "index_finger": "C 11.76 17.86 11.23 15.96 10.93 14.83 C 10.62 13.7 10.61 12.33 12.21 11.74 "
@@ -274,6 +274,15 @@ _HAND_CLOSED_PARTS = {
                    "C 22.86 10.77 23.46 11.88 23.13 12.98 C 22.94 13.62 22.7 14.22 22.7 14.22",
     "little_finger": "C 22.7 14.22 23.64 12.06 25.6 13.16 C 26.68 13.75 26.64 15.85 26.34 16.96",
     "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
+}
+_POINTER_PARTS = {
+    "wrist_to_thumb": _GRAB_PARTS["wrist_to_thumb"],
+    "thumb": _GRAB_PARTS["thumb"],
+    "index_finger": _GRAB_PARTS["index_finger"],
+    "middle_finger": _GRABBING_PARTS["middle_finger"],
+    "ring_finger": _GRABBING_PARTS["ring_finger"],
+    "little_finger": _GRABBING_PARTS["little_finger"],
+    "palm_to_wrist": _GRABBING_PARTS["palm_to_wrist"],
 }
 
 
@@ -522,8 +531,9 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),
-    "hand_open": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_OPEN_PARTS)),
-    "hand_closed": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_HAND_CLOSED_PARTS)),
+    "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_GRAB_PARTS)),
+    "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_GRABBING_PARTS)),
+    "pointer": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_POINTER_PARTS)),
     "pen": (_TOOL_TIP, pen_nib),
     "knife": (_TOOL_TIP, knife),
     "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
