@@ -36,7 +36,7 @@ class Shape:
 
     kind:
       paper - light form with a dark outline (closed path, rect, circle)
-      fill  - light form whose outline is a top line drawn over it (folds stay visible)
+      fill  - light form with an outline of thickness w drawn over the fill (folds stay visible)
       pline - thick light line with rounded ends and outline (fingers, thumb)
       ink   - solid dark form
       line  - dark line with thickness w (symbols +, -, ^, etc.)
@@ -89,12 +89,14 @@ def render(shapes: list[Shape], theme: str | None = None) -> str:
             attrs = _stroke(ink, s.w + 2 * SW, line_join=s.line_join)
         elif s.kind == "ink":
             attrs = _flat(ink)
+        elif s.kind == "fill":
+            attrs = _stroke(ink, s.w, fill=paper, line_join=s.line_join)
         else:
             attrs = _stroke(ink, s.w, line_join=s.line_join)
         out.append(s.tag(attrs))
     # 3) light fill on top (eraser for internal intersection lines)
     for s in body:
-        if s.kind in ("paper", "fill"):
+        if s.kind == "paper":
             out.append(s.tag(_flat(paper)))
         elif s.kind == "pline":
             out.append(s.tag(_stroke(paper, s.w, line_join=s.line_join)))
@@ -311,7 +313,7 @@ def _hand(pose: str) -> list[Shape]:
 
     fingers = (parts[variant(name)] for name, parts in _HAND_PARTS.items())
     outline = _path(_HAND_START, _HAND_WRIST, *fingers, _HAND_PALM, "Z")
-    return [path_shape(outline, "fill", SW), path_shape(outline, "line", SW, top=True)]
+    return [path_shape(outline, "fill", SW)]
 
 
 _NIB_SLIT = 13.14  # slit length from the tip; the dot sits at its end
