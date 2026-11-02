@@ -263,6 +263,9 @@ def star(outer_radius: float) -> str:
     return rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
 
 
+_ARROW_HOTSPOT = (7, 5)
+
+
 def arrow() -> list[Shape]:
     """Default pointer: rounded triangle, minimal points (two per corner), the top-left corner is the hotspot.
     The left edge is a whole-pixel vertical, every anchor sits on a grid point."""
@@ -666,10 +669,10 @@ CANVAS: dict[str, tuple[float, float]] = {"corner": _CORNER_CURSOR_CANVAS}
 
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
-    "arrow": ((7, 5), arrow),
-    "path_selection": ((7, 5), path_selection),
-    "direct_selection": ((7, 5), direct_selection),
-    "corner": ((7, 5), corner),
+    "arrow": (_ARROW_HOTSPOT, arrow),
+    "path_selection": (_ARROW_HOTSPOT, path_selection),
+    "direct_selection": (_ARROW_HOTSPOT, direct_selection),
+    "corner": (_ARROW_HOTSPOT, corner),
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),
