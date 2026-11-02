@@ -14,7 +14,7 @@ from gridfit import (
 # ============================== STYLE ======================================
 GRID = 32            # logical cursor grid: one unit is exactly one pixel at the base size
 SW = 2               # thickness of all outlines and lines, whole pixels at the base size
-H = 2                # halo width, whole pixels at the base size
+H = 1                # halo width, whole pixels at the base size
 # Windows asks for 32 px at 100% and 40/48/56/64/72/80/96 px at 125-300% scaling; 112 and 128 serve the
 # larger cursor-size settings. Each entry is grid-fitted on its own, so every size stays sharp.
 CUR_SIZES = (32, 40, 48, 56, 64, 72, 80, 96, 112, 128)
