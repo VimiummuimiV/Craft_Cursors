@@ -437,6 +437,11 @@ _CROP_FRAME_ARM = 7
 _CROP_FRAME_HOTSPOT = (LINE_INSET, LINE_INSET)
 
 
+def _solid_polygon(path: str) -> list[Shape]:
+    """Solid form with rounded corners: the flat fill plus an outline of the line thickness."""
+    return [path_shape(path, "ink"), path_shape(path, "line", SW)]
+
+
 def crop_frame() -> list[Shape]:
     """Crop tool: arrow corner at the top left plus three corner brackets of the frame."""
     near, far, arm = LINE_INSET, LINE_FAR_EDGE, _CROP_FRAME_ARM
@@ -445,10 +450,37 @@ def crop_frame() -> list[Shape]:
     bottom_right = f"M{_number(far)} {_number(far - arm)} V{_number(far)} H{_number(far - arm)}"
     bottom_left = f"M{_number(near + arm)} {_number(far)} H{_number(near)} V{_number(far - arm)}"
     return [
-        path_shape(triangle, "ink"),
-        path_shape(triangle, "line", SW),
+        *_solid_polygon(triangle),
         path_shape(_path(top_right, bottom_right, bottom_left), "line", SW),
     ]
+
+
+# Direction cursors: solid arrowheads at the allowed region edge, joined by shafts through the canvas center.
+_ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
+_ARROW_HEAD_LENGTH = 5.5
+_ARROW_HEAD_HALF_WIDTH = 3.6
+
+
+def _arrow_head(direction_x: int, direction_y: int) -> str:
+    """Triangle path with its tip at the allowed region edge, pointing along the direction."""
+    tip_x, tip_y = _CANVAS_CENTER + direction_x * _ARROW_REACH, _CANVAS_CENTER + direction_y * _ARROW_REACH
+    base_x, base_y = tip_x - direction_x * _ARROW_HEAD_LENGTH, tip_y - direction_y * _ARROW_HEAD_LENGTH
+    side_x, side_y = -direction_y * _ARROW_HEAD_HALF_WIDTH, direction_x * _ARROW_HEAD_HALF_WIDTH
+    return _path(f"M{_number(tip_x)} {_number(tip_y)}",
+                 f"L{_number(base_x + side_x)} {_number(base_y + side_y)}",
+                 f"L{_number(base_x - side_x)} {_number(base_y - side_y)}", "Z")
+
+
+def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
+    """Double arrows along the chosen axes: resize for one axis, move for both."""
+    shaft_reach = _ARROW_REACH - _ARROW_HEAD_LENGTH
+    axes = [axis for axis, enabled in (((1, 0), horizontal), ((0, 1), vertical)) if enabled]
+    shafts = [f"M{_number(_CANVAS_CENTER - axis_x * shaft_reach)} {_number(_CANVAS_CENTER - axis_y * shaft_reach)} "
+              f"L{_number(_CANVAS_CENTER + axis_x * shaft_reach)} {_number(_CANVAS_CENTER + axis_y * shaft_reach)}"
+              for axis_x, axis_y in axes]
+    heads = [shape for axis_x, axis_y in axes for sign in (-1, 1)
+             for shape in _solid_polygon(_arrow_head(sign * axis_x, sign * axis_y))]
+    return [path_shape(_path(*shafts), "line", SW), *heads]
 
 
 _WAND_TILT = 32
@@ -588,6 +620,9 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
     "crop_frame": (_CROP_FRAME_HOTSPOT, crop_frame),
+    "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=False)),
+    "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=False, vertical=True)),
+    "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=True)),
     "scissors": (_SCISSORS_HOTSPOT, scissors),
     "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
