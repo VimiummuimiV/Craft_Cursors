@@ -2,7 +2,8 @@
 Generator for a unified cursor set.
 
 Usage:   python main.py [output_folder]
-Result: svg/, png/{dark,light}/<size>/, cur/{dark,light}/<size>/ and cur/{dark,light}/multi/, preview.html, sheet_*.png, cursors.json
+Result: svg/, png/{dark,light}/<size>/, cur/{dark,light}/<size>/ and cur/{dark,light}/multi/, preview.html, sheet_*.png, cursors.json.
+Stale SVG, PNG, CUR and contact-sheet exports are removed from those generated output folders.
 
 Cursor geometry and shared style settings live in cursors.py. Each cursor is described on a
 32x32 grid, so changing shared thickness/colors rebuilds the entire set. Every cursor, halo
@@ -165,6 +166,41 @@ def export_cursor(out: Path, name: str, theme: str) -> None:
     write_cur(out / "cur" / theme / MULTI_SIZE_FOLDER / f"{name}.cur", entries)
 
 
+def prune_stale_exports(out: Path) -> None:
+    expected_svg = {Path(f"{name}.svg") for name in CURSORS}
+    expected_png = {
+        Path(theme) / str(size) / f"{name}.png"
+        for theme in THEMES
+        for size in CUR_SIZES
+        for name in CURSORS
+    }
+    expected_cur = {
+        Path(theme) / folder / f"{name}.cur"
+        for theme in THEMES
+        for folder in (*map(str, CUR_SIZES), MULTI_SIZE_FOLDER)
+        for name in CURSORS
+    }
+
+    for root, expected, suffix in (
+        (out / "svg", expected_svg, ".svg"),
+        (out / "png", expected_png, ".png"),
+        (out / "cur", expected_cur, ".cur"),
+    ):
+        if root.exists():
+            for path in root.rglob(f"*{suffix}"):
+                if path.relative_to(root) not in expected:
+                    path.unlink()
+
+    expected_sheets = {
+        f"sheet_{theme}{suffix}.png"
+        for theme in THEMES
+        for suffix in ("", "_small")
+    }
+    for path in out.glob("sheet_*.png"):
+        if path.name not in expected_sheets:
+            path.unlink()
+
+
 def main() -> None:
     check_padding()
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
@@ -190,6 +226,7 @@ def main() -> None:
         for suffix, size in (("", 96), ("_small", ACTUAL_SIZE)):
             contact_sheet(out / f"sheet_{theme}{suffix}.png", image_side, render_image,
                           theme=theme, pixels_per_unit=size)
+    prune_stale_exports(out)
     print(f"ready: {len(CURSORS)} cursors (themes={', '.join(THEMES)}) -> {out.resolve()}")
 
 

@@ -9,7 +9,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 - `cursors.py` - style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
 - `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`). Knows nothing about cursors.
-- `main.py` - build: padding check, SVG/PNG/.cur export, manifest. `preview.py` - preview.html and contact sheets.
+- `main.py` - build: padding check, SVG/PNG/.cur export, stale generated-file cleanup, manifest. `preview.py` - preview.html and contact sheets.
 - Output: `svg/`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `python main.py [out]` (needs PyQt6).
 
 ## Look
