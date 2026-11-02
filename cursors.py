@@ -431,38 +431,24 @@ def crop() -> list[Shape]:
     ]
 
 
-# Crop frames: corner brackets in the allowed region; the top left corner is closed into a solid triangle
+# Crop frame: corner brackets in the allowed region; the top left corner is closed into a solid triangle
 # (arrow-like) and is the hotspot.
 _CROP_FRAME_ARM = 7
-_CROP_PAIR_ARM = 10
 _CROP_FRAME_HOTSPOT = (LINE_INSET, LINE_INSET)
-
-
-def _crop_arrow_corner(arm: float) -> list[Shape]:
-    near = LINE_INSET
-    triangle = _path(f"M{_number(near)} {_number(near)}", f"H{_number(near + arm)}", f"L{_number(near)} {_number(near + arm)}", "Z")
-    return [path_shape(triangle, "ink"), path_shape(triangle, "line", SW)]
-
-
-def _crop_line_corners(arm: float) -> dict[str, str]:
-    near, far = LINE_INSET, LINE_FAR_EDGE
-    return {
-        "top_right": f"M{_number(far - arm)} {_number(near)} H{_number(far)} V{_number(near + arm)}",
-        "bottom_right": f"M{_number(far)} {_number(far - arm)} V{_number(far)} H{_number(far - arm)}",
-        "bottom_left": f"M{_number(near + arm)} {_number(far)} H{_number(near)} V{_number(far - arm)}",
-    }
 
 
 def crop_frame() -> list[Shape]:
     """Crop tool: arrow corner at the top left plus three corner brackets of the frame."""
-    corners = _crop_line_corners(_CROP_FRAME_ARM)
-    return [*_crop_arrow_corner(_CROP_FRAME_ARM), path_shape(_path(*corners.values()), "line", SW)]
-
-
-def crop_pair() -> list[Shape]:
-    """Crop tool: arrow corner at the top left and the opposite bracket."""
-    corners = _crop_line_corners(_CROP_PAIR_ARM)
-    return [*_crop_arrow_corner(_CROP_PAIR_ARM), path_shape(corners["bottom_right"], "line", SW)]
+    near, far, arm = LINE_INSET, LINE_FAR_EDGE, _CROP_FRAME_ARM
+    triangle = _path(f"M{_number(near)} {_number(near)}", f"H{_number(near + arm)}", f"L{_number(near)} {_number(near + arm)}", "Z")
+    top_right = f"M{_number(far - arm)} {_number(near)} H{_number(far)} V{_number(near + arm)}"
+    bottom_right = f"M{_number(far)} {_number(far - arm)} V{_number(far)} H{_number(far - arm)}"
+    bottom_left = f"M{_number(near + arm)} {_number(far)} H{_number(near)} V{_number(far - arm)}"
+    return [
+        path_shape(triangle, "ink"),
+        path_shape(triangle, "line", SW),
+        path_shape(_path(top_right, bottom_right, bottom_left), "line", SW),
+    ]
 
 
 _WAND_TILT = 32
@@ -602,7 +588,6 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
     "crop_frame": (_CROP_FRAME_HOTSPOT, crop_frame),
-    "crop_pair": (_CROP_FRAME_HOTSPOT, crop_pair),
     "scissors": (_SCISSORS_HOTSPOT, scissors),
     "magic_wand": (_WAND_CENTER, magic_wand),
     "fill": (_DROP_HOTSPOT, fill),
