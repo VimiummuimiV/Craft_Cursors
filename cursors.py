@@ -466,8 +466,9 @@ def note() -> list[Shape]:
     flap = f"M{right - fold} {bottom} V{bottom - fold} H{right}"
     text_start, text_end = left + _NOTE_TEXT_INSET, right - _NOTE_TEXT_INSET
     text_rows = [bottom - fold - _NOTE_TEXT_STEP * step for step in (2, 1, 0)]
+    short_end = right - fold - SW - (_NOTE_TEXT_STEP - SW)   # the gap to the fold equals the gap between rows
     text = _path(f"M{text_start} {text_rows[0]} H{text_end}", f"M{text_start} {text_rows[1]} H{text_end}",
-                 f"M{text_start} {text_rows[2]} H{number((text_start + text_end) / 2)}")
+                 f"M{text_start} {text_rows[2]} H{short_end}")
     return [
         path_shape(bracket, "line", sharp=True),
         path_shape(sheet, "paper", sharp=True),
