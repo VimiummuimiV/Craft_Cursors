@@ -247,47 +247,56 @@ def eyedropper() -> list[Shape]:
 
 # Hands are in 32x32 grid coordinates, fitted to the allowed region with outline and halo.
 # The closed hand has the same scale and anchor (two states of one cursor, so it is not enlarged).
-# Both outlines start and end at the wrist; each part is listed in drawing order.
+# Every outline starts and ends at the wrist; the parts are listed in drawing order. Each part has a
+# "grab" and a "grabbing" variant, the palm is shared. A pose only says which parts use the "grab" one.
 _HAND_WRIST = "14.45 28.3"
 
-_GRAB_PARTS = {
-    "wrist_to_thumb": "C 11.85 28.3 8.8 22.48 6.56 20.3",
-    "thumb": "C 5.27 19.05 3.22 18.6 3.99 16.51 C 4.61 14.81 7.24 14.54 9.2 15.79 "
-             "C 10.62 16.69 11.76 17.86 11.76 17.86",
-    "index_finger": "C 11.76 17.86 9.55 9.8 9.24 8.62 C 8.93 7.45 9.62 6.25 10.8 5.92 "
-                    "C 11.97 5.6 13.16 6.19 13.51 7.48 C 13.86 8.79 15.07 13.24 15.07 13.24",
-    "middle_finger": "C 15.07 13.24 14.44 7.14 14.33 5.92 C 14.22 4.72 15.23 3.8 16.45 3.7 "
-                     "C 17.56 3.62 18.7 4.7 18.75 5.92 C 18.79 7.14 18.97 13.07 18.97 13.07",
-    "ring_finger": "C 18.97 13.07 19.57 8.11 19.7 6.89 C 19.84 5.65 21 5.01 22.18 5.25 "
-                   "C 23.31 5.49 23.92 6.85 23.72 8.05 C 23.54 9.23 22.7 14.22 22.7 14.22",
-    "little_finger": "C 22.7 14.22 23.83 10.52 24.15 9.51 C 24.52 8.35 25.94 8.01 26.95 8.39 "
-                     "C 28.05 8.81 28.46 10.11 27.98 11.72 C 27.5 13.34 27.08 14.7 26.34 16.96",
-    "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
+_HAND_PARTS = {
+    "wrist_to_thumb": {
+        "grab": "C 11.85 28.3 8.8 22.48 6.56 20.3",
+        "grabbing": "C 12.35 28.3 8.67 22.83 8.13 19.75",
+    },
+    "thumb": {
+        "grab": "C 5.27 19.05 3.22 18.6 3.99 16.51 C 4.61 14.81 7.24 14.54 9.2 15.79 "
+                "C 10.62 16.69 11.76 17.86 11.76 17.86",
+        "grabbing": "C 7.88 18.26 11.18 15.79 11.18 15.79 L 11.76 17.86",
+    },
+    "index_finger": {
+        "grab": "C 11.76 17.86 9.55 9.8 9.24 8.62 C 8.93 7.45 9.62 6.25 10.8 5.92 "
+                "C 11.97 5.6 13.16 6.19 13.51 7.48 C 13.86 8.79 15.07 13.24 15.07 13.24",
+        "grabbing": "C 11.76 17.86 11.23 15.96 10.93 14.83 C 10.62 13.7 10.61 12.33 12.21 11.74 "
+                  "C 13.35 11.31 14.76 12.07 15.07 13.24",
+    },
+    "middle_finger": {
+        "grab": "C 15.07 13.24 14.44 7.14 14.33 5.92 C 14.22 4.72 15.23 3.8 16.45 3.7 "
+                "C 17.56 3.62 18.7 4.7 18.75 5.92 C 18.79 7.14 18.97 13.07 18.97 13.07",
+        "grabbing": "L 14.78 12.1 C 14.58 10.92 15.7 9.86 16.92 9.86 C 18.13 9.86 19.13 10.71 19.13 11.92",
+    },
+    "ring_finger": {
+        "grab": "C 18.97 13.07 19.57 8.11 19.7 6.89 C 19.84 5.65 21 5.01 22.18 5.25 "
+                "C 23.31 5.49 23.92 6.85 23.72 8.05 C 23.54 9.23 22.7 14.22 22.7 14.22",
+        "grabbing": "L 18.97 13.07 C 18.97 13.07 18.99 13.14 19.13 11.92 C 19.26 10.68 20.74 10.05 21.86 10.44 "
+                  "C 22.86 10.77 23.46 11.88 23.13 12.98 C 22.94 13.62 22.7 14.22 22.7 14.22",
+    },
+    "little_finger": {
+        "grab": "C 22.7 14.22 23.83 10.52 24.15 9.51 C 24.52 8.35 25.94 8.01 26.95 8.39 "
+                "C 28.05 8.81 28.46 10.11 27.98 11.72 C 27.5 13.34 27.08 14.7 26.34 16.96",
+        "grabbing": "C 22.7 14.22 23.64 12.06 25.6 13.16 C 26.68 13.75 26.64 15.85 26.34 16.96",
+    },
 }
-_GRABBING_PARTS = {
-    "wrist_to_thumb": "C 12.35 28.3 8.67 22.83 8.13 19.75",
-    "thumb": "C 7.88 18.26 11.18 15.79 11.18 15.79 L 11.76 17.86",
-    "index_finger": "C 11.76 17.86 11.23 15.96 10.93 14.83 C 10.62 13.7 10.61 12.33 12.21 11.74 "
-                    "C 13.35 11.31 14.76 12.07 15.07 13.24",
-    "middle_finger": "L 14.78 12.1 C 14.58 10.92 15.7 9.86 16.92 9.86 C 18.13 9.86 19.13 10.71 19.13 11.92",
-    "ring_finger": "L 18.97 13.07 C 18.97 13.07 18.99 13.14 19.13 11.92 C 19.26 10.68 20.74 10.05 21.86 10.44 "
-                   "C 22.86 10.77 23.46 11.88 23.13 12.98 C 22.94 13.62 22.7 14.22 22.7 14.22",
-    "little_finger": "C 22.7 14.22 23.64 12.06 25.6 13.16 C 26.68 13.75 26.64 15.85 26.34 16.96",
-    "palm_to_wrist": "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3",
-}
-_POINTER_PARTS = {
-    "wrist_to_thumb": _GRAB_PARTS["wrist_to_thumb"],
-    "thumb": _GRAB_PARTS["thumb"],
-    "index_finger": _GRAB_PARTS["index_finger"],
-    "middle_finger": _GRABBING_PARTS["middle_finger"],
-    "ring_finger": _GRABBING_PARTS["ring_finger"],
-    "little_finger": _GRABBING_PARTS["little_finger"],
-    "palm_to_wrist": _GRABBING_PARTS["palm_to_wrist"],
+_HAND_PALM_TO_WRIST = "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3"
+
+_HAND_GRAB_PARTS = {
+    "grab": tuple(_HAND_PARTS),
+    "grabbing": (),
+    "pointer": ("wrist_to_thumb", "thumb", "index_finger"),
 }
 
 
-def _hand(parts: dict[str, str]) -> list[Shape]:
-    outline = _path(f"M {_HAND_WRIST}", *parts.values(), f"L {_HAND_WRIST} Z")
+def _hand(pose: str) -> list[Shape]:
+    grab_parts = _HAND_GRAB_PARTS[pose]
+    variants = (part["grab" if name in grab_parts else "grabbing"] for name, part in _HAND_PARTS.items())
+    outline = _path(f"M {_HAND_WRIST}", *variants, _HAND_PALM_TO_WRIST, f"L {_HAND_WRIST} Z")
     return [path_shape(outline, "fill", SW), path_shape(outline, "line", SW, top=True)]
 
 
@@ -531,9 +540,9 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),
-    "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_GRAB_PARTS)),
-    "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_GRABBING_PARTS)),
-    "pointer": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand(_POINTER_PARTS)),
+    "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grab")),
+    "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grabbing")),
+    "pointer": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("pointer")),
     "pen": (_TOOL_TIP, pen_nib),
     "knife": (_TOOL_TIP, knife),
     "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
