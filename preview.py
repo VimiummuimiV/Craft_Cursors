@@ -124,6 +124,20 @@ PREVIEW_STYLES = """<style>
         image-rendering: pixelated;
     }
 
+    .hotspot-marker {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border: 1px solid #fff;
+        border-radius: 50%;
+        box-sizing: border-box;
+        background: #ff3030;
+        box-shadow: 0 0 0 1px #111;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 1;
+    }
+
     .meta {
         display: flex;
         flex-direction: column;
@@ -184,6 +198,7 @@ PREVIEW_STYLES = """<style>
     body.hide-pixels .view-pixels { display: none !important; }
     body.hide-dark .theme-dark { display: none !important; }
     body.hide-light .theme-light { display: none !important; }
+    body.hide-hotspot .hotspot-marker { display: none !important; }
 
     .toolbar button {
         font: inherit;
@@ -214,6 +229,7 @@ PREVIEW_TOOLBAR = """
   <label><input type="checkbox" id="tog-pixels" checked> Pixels</label>
   <label><input type="checkbox" id="tog-dark" checked> dark</label>
   <label><input type="checkbox" id="tog-light" checked> light</label>
+  <label><input type="checkbox" id="tog-hotspot"> Hotspot</label>
   <button type="button" id="btn-shot" title="Capture visible cards as PNG (multi-page if tall)">Save PNG</button>
 </div>
 <script>
@@ -225,6 +241,7 @@ PREVIEW_TOOLBAR = """
     'tog-pixels': 'hide-pixels',
     'tog-dark': 'hide-dark',
     'tog-light': 'hide-light',
+    'tog-hotspot': 'hide-hotspot',
   };
   function sync() {
     const state = {};
@@ -308,7 +325,14 @@ PREVIEW_TOOLBAR = """
 """
 
 
-def _theme_block(theme: str, content: str, stage_style: str, view: str, panel_style: str = "") -> str:
+def _theme_block(
+    theme: str,
+    content: str,
+    stage_style: str,
+    view: str,
+    panel_style: str = "",
+    hotspot_marker: str = "",
+) -> str:
     """One theme row: the cursor (SVG or PNG markup) on a light and a dark panel."""
     compact = view != "large"
     theme_class = "theme compact-theme" if compact else "theme"
@@ -316,7 +340,7 @@ def _theme_block(theme: str, content: str, stage_style: str, view: str, panel_st
     stage_class = "actual-stage" if compact else "stage"
     panels = "".join(
         f'<div class="{panel_class} {background}"{panel_style}>'
-        f'<div class="{stage_class}" {stage_style}>{content}</div></div>'
+        f'<div class="{stage_class}" {stage_style}>{content}{hotspot_marker}</div></div>'
         for background in ("light", "dark"))
     return (f'<div class="{theme_class} theme-{theme} view-{view}">'
             f'<div class="theme-label">{theme}</div>'
@@ -328,27 +352,38 @@ def _png_markup(png: bytes, side: int, shown: int) -> str:
     return f'<img src="data:image/png;base64,{encoded}" width="{shown}" height="{shown}" alt="">'
 
 
+def _hotspot_markup(hotspot_x: float, hotspot_y: float, width: float, height: float) -> str:
+    left = hotspot_x / width * 100
+    top = hotspot_y / height * 100
+    return f'<span class="hotspot-marker" style="left:{left:g}%;top:{top:g}%"></span>'
+
+
 def _card(name: str, render_png: Callable[[str, int, str], bytes]) -> str:
     hotspot_x, hotspot_y = CURSORS[name][0]
     canvas_width, canvas_height = canvas_size(name)
     stage_width, stage_height = canvas_width * LARGE_PIXELS_PER_UNIT, canvas_height * LARGE_PIXELS_PER_UNIT
+    large_hotspot = _hotspot_markup(hotspot_x, hotspot_y, canvas_width, canvas_height)
     panel_style = (f' style="width:{stage_width + 2 * LARGE_PANEL_PADDING:g}px;'
                    f'height:{stage_height + 2 * LARGE_PANEL_PADDING:g}px"')
     large_stage = f'style="width:{stage_width:g}px;height:{stage_height:g}px"'
     large_blocks = [
         _theme_block(theme, build_svg(name, LARGE_PIXELS_PER_UNIT * GRID, theme=theme),
-                     large_stage, "large", panel_style=panel_style)
+                     large_stage, "large", panel_style=panel_style, hotspot_marker=large_hotspot)
         for theme in THEMES]
     actual_side = round(max(canvas_width, canvas_height) * ACTUAL_SIZE / GRID)
     zoomed_side = actual_side * PIXEL_ZOOM
+    compact_hotspot = _hotspot_markup(hotspot_x, hotspot_y, max(canvas_width, canvas_height),
+                                      max(canvas_width, canvas_height))
     pixel_blocks = []
     actual_blocks = []
     for theme in THEMES:
         png = render_png(name, ACTUAL_SIZE, theme)
         actual_blocks.append(_theme_block(theme, _png_markup(png, actual_side, actual_side),
-                                          f'style="width:{actual_side}px;height:{actual_side}px"', "compact"))
+                                          f'style="width:{actual_side}px;height:{actual_side}px"', "compact",
+                                          hotspot_marker=compact_hotspot))
         pixel_blocks.append(_theme_block(theme, _png_markup(png, actual_side, zoomed_side),
-                                         f'style="width:{zoomed_side}px;height:{zoomed_side}px"', "pixels"))
+                                         f'style="width:{zoomed_side}px;height:{zoomed_side}px"', "pixels",
+                                         hotspot_marker=compact_hotspot))
     return (f'<div class="card">'
             f'{"".join(large_blocks)}'
             f'<div class="meta">'
