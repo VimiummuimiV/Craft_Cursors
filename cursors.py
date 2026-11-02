@@ -252,14 +252,14 @@ _STAR_ROUNDING_RATIO = 0.1   # corner radius / outer point radius
 
 
 def star(outer_radius: float) -> str:
-    """Star around the origin with _STAR_POINTS outer and as many inner points, all corners rounded.
-    One outer point looks straight up."""
+    """Grid-snapped star with _STAR_POINTS outer and as many inner points, all corners rounded."""
     points = []
     for index in range(2 * _STAR_POINTS):
         radius = outer_radius if index % 2 == 0 else outer_radius * _STAR_INNER_RATIO
         angle = math.radians(-90 + index * 180 / _STAR_POINTS)
-        points.append((radius * math.cos(angle), radius * math.sin(angle)))
-    return rounded_polygon(points, outer_radius * _STAR_ROUNDING_RATIO)
+        x, y = radius * math.cos(angle), radius * math.sin(angle)
+        points.append((int(math.copysign(pixel(abs(x)), x)), int(math.copysign(pixel(abs(y)), y))))
+    return rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
 
 
 def arrow() -> list[Shape]:
@@ -558,10 +558,10 @@ def scissors() -> list[Shape]:
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
 _WAND_TILT = 45
-_WAND_CENTER = (10, 9)    # hotspot: the star center
-_WAND_STAR_RADIUS = 7.8
-_WAND_TIP_WIDTH = 2.8
-_WAND_HANDLE_WIDTH = 4.6
+_WAND_CENTER = (10, 10)    # hotspot: the star center
+_WAND_STAR_RADIUS = 8
+_WAND_TIP_WIDTH = 2
+_WAND_HANDLE_WIDTH = 4
 _WAND_LENGTH = 24
 _WAND_STAR_STICK_GAP = 0
 
@@ -569,7 +569,7 @@ _WAND_STAR_STICK_GAP = 0
 def magic_wand() -> list[Shape]:
     """Magic wand: star on a tapered stick."""
     tip_half, handle_half = _WAND_TIP_WIDTH / 2, _WAND_HANDLE_WIDTH / 2
-    star_notch = _WAND_STAR_RADIUS * _STAR_INNER_RATIO
+    star_notch = pixel(_WAND_STAR_RADIUS * _STAR_INNER_RATIO)
     stick_start = star_notch + 2 * SW + _WAND_STAR_STICK_GAP - tip_half
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
