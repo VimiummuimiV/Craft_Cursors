@@ -38,7 +38,18 @@ THEMES = {
 THEME = "dark"       # default export theme; change to "light" for the inverse
 # ===========================================================================
 
+# Cursor rotation angles, in degrees.
+_TOOL_TIP_ANGLE = 45
+
+# Shared rendering and canvas geometry.
 _STROKED_KINDS = ("fill", "solid", "line")   # kinds whose outline is centered on the path
+_CANVAS_CENTER = GRID // 2
+_CENTER_DOT_RADIUS = 2
+
+# Shared by eyedropper, pen nib, and knife.
+_TOOL_TIP = (PADDING + PAPER_REACH, GRID - PADDING - PAPER_REACH)
+_TOOL_TRANSFORM = (*_TOOL_TIP, _TOOL_TIP_ANGLE)
+_TOOL_LENGTH = 29.5
 
 
 @dataclass
@@ -292,14 +303,6 @@ def zoom(sign: str) -> list[Shape]:
     ]
 
 
-# Eyedropper, pen nib and knife are drawn along the local -y axis from the tip at the hotspot, tilted 45 degrees.
-# The tip sits in the bottom left corner of the allowed region.
-_TOOL_TIP = (PADDING + PAPER_REACH, GRID - PADDING - PAPER_REACH)
-_TOOL_TIP_ANGLE = 45
-_TOOL_TRANSFORM = (*_TOOL_TIP, _TOOL_TIP_ANGLE)
-_TOOL_LENGTH = 29.5   # tip to the far end of the tool
-
-
 def eyedropper() -> list[Shape]:
     tip, neck, tube_end = "M0 0", "-7", "-17.5"
     tube = _path(tip, f"L-2.7 {neck}", f"L-2.7 {tube_end}", f"L2.7 {tube_end}", f"L2.7 {neck}", "Z")
@@ -404,10 +407,6 @@ def magnet() -> list[Shape]:
         path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True),
         _dot(*_MAGNET_ORIGIN, _MAGNET_DOT_RADIUS),
     ]
-
-
-_CANVAS_CENTER = GRID // 2
-_CENTER_DOT_RADIUS = 2
 
 
 def crosshair() -> list[Shape]:
@@ -529,9 +528,9 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
 
 
-_WAND_TILT = 32
+_SCISSORS_TILT = 32
 _SCISSORS_HOTSPOT = (10, 6)
-_SCISSORS_TRANSFORM = (*_SCISSORS_HOTSPOT, -_WAND_TILT)
+_SCISSORS_TRANSFORM = (*_SCISSORS_HOTSPOT, -_SCISSORS_TILT)
 _SCISSORS_SCALE = 0.96
 _SCISSORS_PATH = _scaled_path(
     "M0 16.25 L-1.25 18.41 C-1.03 19.41 -1.17 20.49 -1.72 21.45 "
@@ -553,17 +552,18 @@ _SCISSORS_PATH = _scaled_path(
 
 
 def scissors() -> list[Shape]:
-    """Scissors point down in local coordinates and rotate to the Magic Wand angle."""
+    """Scissors point down in local coordinates and rotate to their intended angle."""
     return [path_shape(_SCISSORS_PATH, "ink", transform=_SCISSORS_TRANSFORM)]
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
+_WAND_TILT = 45
 _WAND_CENTER = (10, 9)    # hotspot: the star center
-_WAND_STAR_RADIUS = 8.2
-_WAND_TIP_WIDTH = 2.8        # stick width next to the star
+_WAND_STAR_RADIUS = 7.8
+_WAND_TIP_WIDTH = 2.8
 _WAND_HANDLE_WIDTH = 4.6
-_WAND_LENGTH = 23.2           # from the star center to the handle end
-_WAND_STAR_STICK_GAP = 0    # visible gap between the outlined star and stick
+_WAND_LENGTH = 24
+_WAND_STAR_STICK_GAP = 0
 
 
 def magic_wand() -> list[Shape]:
@@ -579,8 +579,8 @@ def magic_wand() -> list[Shape]:
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
 # the drop falls below the lower rim end and its lowest point is the hotspot.
+_BUCKET_TILT = 35
 _BUCKET_CENTER = (18, 18)
-_BUCKET_TILT = 35            # degrees counter-clockwise
 _BUCKET_RIM_HALF = 8.7       # half width at the rim (top)
 _BUCKET_BASE_HALF = 5.5      # half width at the base (bottom)
 _BUCKET_HALF_HEIGHT = 7.7
