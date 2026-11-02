@@ -270,7 +270,7 @@ def arrow() -> list[Shape]:
     upper_edge = "L22 18"
     right_tip = "C23 19 22.4 20.6 21 21"
     concave_lower_edge = "C16 22.4 11.5 24.4 8 26.5"
-    bottom_left_corner = "C7 26.6 6 26.4 6 26"  # the left edge closes the path
+    bottom_left_corner = "C7 27.1 6 27 6 26"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
     return [path_shape(outline, "paper")]
 
