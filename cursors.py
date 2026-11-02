@@ -358,6 +358,7 @@ _HAND_POSES = {
     "grabbing": ("grabbing", (12, 11, 12, 14)),
     "pointer": ("grab", (5, 11, 12, 14)),
 }
+_POINTER_HOTSPOT = (_FINGERS_LEFT + _FINGER_WIDTH // 2, _HAND_POSES["pointer"][1][0])
 
 
 def _finger(left: float, tip_top: float) -> str:
@@ -678,7 +679,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "eyedropper": (_TOOL_TIP, eyedropper),
     "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grab")),
     "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grabbing")),
-    "pointer": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("pointer")),
+    "pointer": (_POINTER_HOTSPOT, lambda: _hand("pointer")),
     "pen": (_TOOL_TIP, pen_nib),
     "knife": (_TOOL_TIP, knife),
     "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
