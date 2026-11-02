@@ -331,6 +331,7 @@ def magnet() -> list[Shape]:
 
 
 _CANVAS_CENTER = GRID // 2
+_CENTER_DOT_RADIUS = 2
 
 
 def crosshair() -> list[Shape]:
@@ -340,7 +341,10 @@ def crosshair() -> list[Shape]:
     right_arm = f"M{center + gap} {center} H{far}"
     top_arm = f"M{center} {near} V{center - gap}"
     bottom_arm = f"M{center} {center + gap} V{far}"
-    return [path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", SW)]
+    return [
+        path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", SW),
+        Shape("circle", f'cx="{center}" cy="{center}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
+    ]
 
 
 def artboard() -> list[Shape]:
@@ -351,12 +355,12 @@ def artboard() -> list[Shape]:
     return [
         path_shape(outline, "line", SW),
         path_shape(detail, "line", SW, top=True),
+        Shape("circle", f'cx="{_CANVAS_CENTER}" cy="{_CANVAS_CENTER}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
     ]
 
 
 _CROP_RING_RADIUS = 6.5
 _CROP_ARM_OUTER_RADIUS = _CANVAS_CENTER - LINE_INSET   # the arm ends touch the allowed region
-_CROP_CENTER_DOT_RADIUS = 2
 
 
 def crop() -> list[Shape]:
@@ -372,7 +376,7 @@ def crop() -> list[Shape]:
     return [
         path_shape(arms, "line", SW),
         Shape("circle", f'cx="{center}" cy="{center}" r="{_CROP_RING_RADIUS}"', "paper"),
-        Shape("circle", f'cx="{center}" cy="{center}" r="{_CROP_CENTER_DOT_RADIUS}"', "ink", top=True),
+        Shape("circle", f'cx="{center}" cy="{center}" r="{_CENTER_DOT_RADIUS}"', "ink", top=True),
     ]
 
 
