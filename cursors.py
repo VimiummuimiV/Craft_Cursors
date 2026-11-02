@@ -58,7 +58,7 @@ class Shape:
     kind:
       paper - light form with a dark outline (closed path, circle)
       fill  - light form with an outline of thickness SW drawn over the fill (folds stay visible)
-      inverse - solid ink form with a paper-colored outline
+      inverse - solid ink form expanded to the paper-outline outer, paper-colored outline from remaining halo
       ink   - solid dark form
       solid - solid dark form with an outline of thickness SW (arrowheads, corners)
       line  - dark line with thickness SW (symbols +, -, ^, etc.)
@@ -127,7 +127,8 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
         if shape.kind == "paper":
             attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
         elif shape.kind == "inverse":
-            attrs = _stroke(paper, 2 * stroke, paper, shape.sharp)
+            # solid expands to path+SW (matches paper outline outer); outer H of halo is the outline
+            attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
         elif shape.kind == "ink":
             attrs = _flat(ink)
         elif shape.kind == "fill":
@@ -141,8 +142,6 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     for shape, tag in body:
         if shape.kind == "paper":
             out.append(tag(_flat(paper)))
-        elif shape.kind == "inverse":
-            out.append(tag(_flat(ink)))
     # 4) top details
     for shape, tag in details:
         if shape.kind == "dot":
