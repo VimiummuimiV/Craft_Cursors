@@ -247,56 +247,70 @@ def eyedropper() -> list[Shape]:
 
 # Hands are in 32x32 grid coordinates, fitted to the allowed region with outline and halo.
 # The closed hand has the same scale and anchor (two states of one cursor, so it is not enlarged).
-# Every outline starts and ends at the wrist; the parts are listed in drawing order. Each part has a
-# "grab" and a "grabbing" variant, the palm is shared. A pose only says which parts use the "grab" one.
-_HAND_WRIST = "14.45 28.3"
+# One outline runs from the wrist over thumb and fingers, then down the palm back to the wrist.
+# Parts that differ between "grab" (open hand) and "grabbing" (fist) keep both variants, "pointer"
+# mixes them (see _HAND_GRAB_PARTS). The line between two fingers is part of the outline: it runs
+# down the edge of a finger to its base and back up along the next one.
+_HAND_START = "M 15.35 28.3"
+_HAND_WRIST = "C 14.96 28.3 14.57 28.21 14.22 28.05 C 13.51 27.73 12.32 27.02 11.08 25.54"
+_HAND_PALM = (
+    "C 26.66 21 25.66 24.93 23.65 27.32 C 23.13 27.94 22.36 28.3 21.55 28.3 "
+    "C 19.82 28.3 16.56 28.3 15.35 28.3"
+)
 
 _HAND_PARTS = {
-    "wrist_to_thumb": {
-        "grab": "C 11.85 28.3 8.8 22.48 6.56 20.3",
-        "grabbing": "C 12.35 28.3 8.67 22.83 8.13 19.75",
-    },
     "thumb": {
-        "grab": "C 5.27 19.05 3.22 18.6 3.99 16.51 C 4.61 14.81 7.24 14.54 9.2 15.79 "
-                "C 10.62 16.69 11.76 17.86 11.76 17.86",
-        "grabbing": "C 7.88 18.26 11.18 15.79 11.18 15.79 L 11.76 17.86",
+        "grab": "C 9.1 23.2 6.7 18.81 5.49 16.5 C 5.03 15.63 5.27 14.55 6.04 13.94 "
+                "C 6.94 13.25 8.2 13.4 8.9 14.27 L 12.26 18.51",
+        "grabbing": "C 9.7 23.91 8.88 21.79 8.5 20.66 C 8.32 20.11 8.38 19.5 8.68 19 "
+                    "C 9.22 18.08 10.33 16.68 12.26 16.29 L 12.26 18.51",
     },
-    "index_finger": {
-        "grab": "C 11.76 17.86 9.55 9.8 9.24 8.62 C 8.93 7.45 9.62 6.25 10.8 5.92 "
-                "C 11.97 5.6 13.16 6.19 13.51 7.48 C 13.86 8.79 15.07 13.24 15.07 13.24",
-        "grabbing": "C 11.76 17.86 11.23 15.96 10.93 14.83 C 10.62 13.7 10.61 12.33 12.21 11.74 "
-                  "C 13.35 11.31 14.76 12.07 15.07 13.24",
+    "index": {
+        "grab": "L 12.26 6.93 C 12.26 5.93 13.07 5.12 14.07 5.12 "
+                "C 15.07 5.12 15.87 5.93 15.87 6.93 L 15.87 15.43",
+        "grabbing": "L 12.26 13.56 C 12.26 12.56 13.07 11.75 14.07 11.75 "
+                    "C 15.07 11.75 15.87 12.56 15.87 13.56 L 15.87 15.43",
     },
-    "middle_finger": {
-        "grab": "C 15.07 13.24 14.44 7.14 14.33 5.92 C 14.22 4.72 15.23 3.8 16.45 3.7 "
-                "C 17.56 3.62 18.7 4.7 18.75 5.92 C 18.79 7.14 18.97 13.07 18.97 13.07",
-        "grabbing": "L 14.78 12.1 C 14.58 10.92 15.7 9.86 16.92 9.86 C 18.13 9.86 19.13 10.71 19.13 11.92",
+    "middle": {
+        "grab": "L 15.87 5.51 C 15.87 5.03 16.07 4.57 16.4 4.23 C 16.74 3.89 17.2 3.7 17.68 3.7 "
+                "C 18.16 3.7 18.62 3.89 18.96 4.23 C 19.3 4.57 19.49 5.03 19.49 5.51 "
+                "L 19.49 15.53",
+        "grabbing": "L 15.87 12.48 C 15.87 12 16.07 11.54 16.4 11.2 "
+                    "C 16.74 10.86 17.2 10.67 17.68 10.67 C 18.16 10.67 18.62 10.86 18.96 11.2 "
+                    "C 19.3 11.54 19.49 12 19.49 12.48 L 19.49 15.53",
     },
-    "ring_finger": {
-        "grab": "C 18.97 13.07 19.57 8.11 19.7 6.89 C 19.84 5.65 21 5.01 22.18 5.25 "
-                "C 23.31 5.49 23.92 6.85 23.72 8.05 C 23.54 9.23 22.7 14.22 22.7 14.22",
-        "grabbing": "L 18.97 13.07 C 18.97 13.07 18.99 13.14 19.13 11.92 C 19.26 10.68 20.74 10.05 21.86 10.44 "
-                  "C 22.86 10.77 23.46 11.88 23.13 12.98 C 22.94 13.62 22.7 14.22 22.7 14.22",
+    "ring": {
+        "grab": "L 19.49 7.6 C 19.49 7.13 19.68 6.67 20.02 6.33 C 20.36 5.99 20.82 5.8 21.31 5.8 "
+                "C 21.81 5.8 22.26 5.99 22.6 6.33 C 22.94 6.67 23.13 7.13 23.13 7.6 L 23.13 16.29",
+        "grabbing": "L 19.49 13.43 C 19.49 12.95 19.68 12.5 20.02 12.16 "
+                    "C 20.36 11.82 20.82 11.63 21.31 11.63 C 21.81 11.63 22.26 11.82 22.6 12.16 "
+                    "C 22.94 12.5 23.13 12.95 23.13 13.43 L 23.13 16.29",
     },
-    "little_finger": {
-        "grab": "C 22.7 14.22 23.83 10.52 24.15 9.51 C 24.52 8.35 25.94 8.01 26.95 8.39 "
-                "C 28.05 8.81 28.46 10.11 27.98 11.72 C 27.5 13.34 27.08 14.7 26.34 16.96",
-        "grabbing": "C 22.7 14.22 23.64 12.06 25.6 13.16 C 26.68 13.75 26.64 15.85 26.34 16.96",
+    "little": {
+        "grab": "L 23.13 9.6 C 23.13 9.13 23.32 8.67 23.66 8.33 C 24 7.99 24.46 7.8 24.94 7.8 "
+                "C 25.42 7.8 25.88 7.99 26.21 8.33 C 26.55 8.67 26.74 9.13 26.74 9.6 "
+                "L 26.74 15.71",
+        "grabbing": "L 23.13 15.43 C 23.13 14.95 23.32 14.5 23.66 14.16 "
+                    "C 24 13.82 24.46 13.63 24.94 13.63 C 25.42 13.63 25.88 13.82 26.21 14.16 "
+                    "C 26.55 14.5 26.74 14.95 26.74 15.43 L 26.74 15.71",
     },
 }
-_HAND_PALM_TO_WRIST = "C 25.86 18.41 26 21.9 24.78 24.02 C 22.35 28.19 21.71 28.3 19.89 28.3"
 
-_HAND_GRAB_PARTS = {
+_HAND_GRAB_PARTS = {   # parts drawn in their "grab" variant, the others use "grabbing"
     "grab": tuple(_HAND_PARTS),
     "grabbing": (),
-    "pointer": ("wrist_to_thumb", "thumb", "index_finger"),
+    "pointer": ("thumb", "index"),
 }
 
 
 def _hand(pose: str) -> list[Shape]:
     grab_parts = _HAND_GRAB_PARTS[pose]
-    variants = (part["grab" if name in grab_parts else "grabbing"] for name, part in _HAND_PARTS.items())
-    outline = _path(f"M {_HAND_WRIST}", *variants, _HAND_PALM_TO_WRIST, f"L {_HAND_WRIST} Z")
+
+    def variant(name: str) -> str:
+        return "grab" if name in grab_parts else "grabbing"
+
+    fingers = (parts[variant(name)] for name, parts in _HAND_PARTS.items())
+    outline = _path(_HAND_START, _HAND_WRIST, *fingers, _HAND_PALM, "Z")
     return [path_shape(outline, "fill", SW), path_shape(outline, "line", SW, top=True)]
 
 
