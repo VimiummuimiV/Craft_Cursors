@@ -263,7 +263,8 @@ def star(outer_radius: float) -> str:
     return rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
 
 
-_ARROW_HOTSPOT = (7, 5)
+_ARROW_OFFSET = (-2, -2)
+_ARROW_HOTSPOT = (7 + _ARROW_OFFSET[0], 5 + _ARROW_OFFSET[1])
 
 
 def arrow() -> list[Shape]:
@@ -276,7 +277,7 @@ def arrow() -> list[Shape]:
     concave_lower_edge = "C16 22.4 11.5 24.4 8 26.5"
     bottom_left_corner = "C7 27.1 6 27 6 26"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
-    return [path_shape(outline, "ink")]
+    return [path_shape(outline, "ink", transform=(*_ARROW_OFFSET, 0))]
 
 
 def path_selection() -> list[Shape]:
@@ -289,13 +290,12 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
-_ARROW_CURSOR_CANVAS = (36, 36)
 _CORNER_MARK = "M30 19 C30 25 27 28 21 28"
 
 
 def corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line")]
+    return arrow() + [path_shape(_CORNER_MARK, "line", transform=(*_ARROW_OFFSET, 0))]
 
 
 _LENS_RADIUS = 8
@@ -692,11 +692,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "fill": (_DROP_HOTSPOT, fill),
 }
 
-# Keep the arrow family aligned as badges and marks are added.
-CANVAS: dict[str, tuple[float, float]] = {
-    name: _ARROW_CURSOR_CANVAS
-    for name in ("arrow", "path_selection", "direct_selection", "corner")
-}
+CANVAS: dict[str, tuple[float, float]] = {}
 
 
 def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | None = None) -> None:

@@ -19,7 +19,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - Glyph only, or the default cursor plus one small badge. No clutter, no blobs, no different cursor per tool unless the tool truly needs it. Path Selection reuses the standard pointer; Direct Selection uses the same silhouette with an inverse fill/outline.
 - No red hotspot dot in SVGs or previews. No badges on the default arrow.
 - Move/resize cursors follow the W11 concept: separate arrowheads, vertical and horizontal pairs.
-- Arrow-family cursors share a 36x36 canvas for consistent room around modifiers without moving the hotspot.
+- Arrow-family cursors share a silhouette shifted 2 units up-left, with its hotspot shifted equally, to fit the Corner arc and selection modifiers on 32x32.
 - Corner Tool combines the pointer with a rounded-corner arc.
 - Shape kinds (use these, never raw colors): `paper` outlined light form, `fill` light form with outline over it (folds), `inverse` solid ink form with a paper-colored outline, `ink` solid, `solid` solid with outline (arrowheads), `line`, `dot` (solid circle with halo, always on top). `top=True` draws a detail above everything without halo.
 
@@ -29,7 +29,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - `SW = 2` (outline and line thickness), `H = 2` (halo width). Both must stay whole pixels and even, so centered lines land on pixel edges.
 - `PADDING = 1`: every cursor, halo included, stays 1 unit from all four canvas edges. `check_padding()` stops the build and lists offenders.
 - Derived: `LINE_REACH = SW/2 + H`, `PAPER_REACH = SW + H`, `LINE_INSET = PADDING + LINE_REACH` (nearest a line centerline may get to an edge, 4), `LINE_FAR_EDGE = GRID - LINE_INSET` (28). Line ends, arrow tips and tool tips use these, never literals.
-- Canvas grows only when a badge does not fit (`CANVAS`); the hotspot and the top-left origin never move.
+- Canvas grows only when a badge does not fit (`CANVAS`); when cursor artwork is translated, translate its hotspot equally.
 
 ## Pixel-perfect rules
 
