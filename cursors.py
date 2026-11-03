@@ -192,6 +192,10 @@ def _circle(center_x: float, center_y: float, radius: float, kind: str, top: boo
     return _Shape(kind, "", (center_x, center_y, radius), top, transform, name=name, snap=snap)
 
 
+def _square(center_x: float, center_y: float, half: float, kind: str, name: str = "") -> _Shape:
+    return _path_shape(_rectangle(center_x - half, center_y - half, center_x + half, center_y + half), kind, sharp=True, name=name)
+
+
 def _dot(center_x: float, center_y: float, radius: float,
          transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "center") -> _Shape:
     return _circle(center_x, center_y, radius, "dot", transform=transform, name=name)
@@ -834,6 +838,9 @@ def _help() -> list[_Shape]:
 # _add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 _BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
+_ANCHOR_HALF_SIZE = 2        # square badge: its corner is the closest point to the arrow, so it is smaller than other glyphs
+_SEGMENT_HALF_WIDTH = 3      # curve badge: arch ends from the origin
+_SEGMENT_DOT_RADIUS = 2      # curve badge: end points, half the size of a full anchor dot
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
 _BADGE_SHIFT = {"arrow": 3, "pen": 2}   # base -> units its badges move right and down from _BADGE_ORIGIN
@@ -842,6 +849,13 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
         "plus": [_path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
         "minus": [_path_shape("M-3 0 H3", "line", sharp=True, name="minus")],
         "ring": [_circle(0, 0, 3, "line", name="ring")],
+        "anchor": [_square(0, 0, _ANCHOR_HALF_SIZE, "ink", name="anchor")],
+        "segment": [
+            _path_shape(f"M{-_SEGMENT_HALF_WIDTH} 2 C{-_SEGMENT_HALF_WIDTH} -4 {_SEGMENT_HALF_WIDTH} -4 {_SEGMENT_HALF_WIDTH} 2",
+                        "line", name="segment_curve"),
+            _circle(-_SEGMENT_HALF_WIDTH, 2, _SEGMENT_DOT_RADIUS, "ink", name="segment_start"),
+            _circle(_SEGMENT_HALF_WIDTH, 2, _SEGMENT_DOT_RADIUS, "ink", name="segment_end"),
+        ],
         "not_allowed": _not_allowed_mark(_NOT_ALLOWED_BADGE_RADIUS),
         "help": _help_mark(_HELP_BADGE_HALF_WIDTH),
     },
@@ -950,6 +964,8 @@ for _name, (_base, _badge) in {
     "color_sampler": ("eyedropper", "ring"),
     "arrow_direct_selection_add": ("arrow_direct_selection", "plus"),
     "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
+    "arrow_direct_selection_anchor": ("arrow_direct_selection", "anchor"),
+    "arrow_direct_selection_segment": ("arrow_direct_selection", "segment"),
 }.items():
     _add_badged(_name, _base, _badge)
 _add_badged("arrow_scissors", "arrow", "scissors")
