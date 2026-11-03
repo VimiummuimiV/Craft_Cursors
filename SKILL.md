@@ -10,7 +10,8 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - `cursors.py` - style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
 - `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`). Knows nothing about cursors.
 - `main.py` - build: padding check, SVG/PNG/.cur export, stale generated-file cleanup, manifest. `preview.py` - preview.html and contact sheets.
-- Output: `svg/`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `python main.py [out]` (needs PyQt6).
+- `requirements.txt` - `PyQt6` only (PNG/.cur rendering, contact sheets). `cursors.py` and `gridfit.py` use the standard library; `preview.html` loads html2canvas from a CDN for its Save PNG button.
+- Output: `svg/`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `pip install -r requirements.txt`, then `python main.py [out]`.
 
 ## Look
 
@@ -56,13 +57,22 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 ## Badges
 
 - Glyphs are drawn once around their own origin on whole units; none reaches farther right or down than `_BADGE_HALF_SIZE` (3). All badges share `BADGE_ORIGIN` in the bottom-right corner of the allowed region.
-- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`; `arrow`: `scissors`) keep bulky marks from constraining others. `arrow_scissors` is the only cursor with a grown canvas (38).
+- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`; `arrow`: `scissors`, `move`) keep bulky marks from constraining others. `arrow_scissors` and `arrow_move` are the cursors with a grown canvas (40x40, `_LARGE_BADGE_CANVAS`).
+- A badge never sits flush against the base: keep about 3 px of clear space between the badge ink and the base ink at 32 px, or the pair does not read.
+- `_arrow_cross()` builds the move/resize cursors and the `arrow_move` badge (`flat=True`: unoutlined heads, round-capped shaft, so the shaft halo cannot poke out past the heads). Neighbouring head corners must stay `(reach - 2 * head size) * sqrt(2)` apart, at least about 2.8 px, otherwise the halos fuse into one blob. The badge cross is offset by `_MOVE_BADGE_CENTER` from the badge origin to stay clear of the arrow tip.
 - New badged cursor: one `add_badged(name, base, badge)` entry. Never copy a base cursor's shapes.
+
+## SVG structure
+
+- Every cursor is one `<g id="<cursor name>">`. A cursor with a badge nests two groups in it: the base cursor's group (named after the base: `arrow`, `pen`, `eyedropper`) and `badge`. A cursor without a badge holds its elements directly in the cursor group.
+- One element per `Shape`, id = `Shape.name`, plus `<name>_halo` and `<name>_fill` (the halo and the paper eraser). Every shape gets a short descriptive name (`pointer`, `lens`, `nib`, `sheet`), never an editor default like Path or Curve. Ids are unique per file and use underscores, no hyphens.
+- Inside a group the painting order is halo, outline, fill, details. Groups paint in document order, base first and badge on top, so a badge halo can trim a few pixels of the base outline where they touch (`pen_add`, `pen_delete`, `pen_close`, `pen_freeform`).
+- New shape: pass `name=`. `BADGES` glyphs are named by the glyph; `add_badged()` adds the `badge_` prefix and the `badge` group and marks the base shapes with the base name. A variant built by hand (`arrow_corner`) sets `group="arrow"` on the base shapes and `group="badge"` on the badge itself.
 
 ## Workflow
 
 - One cursor at a time until approved. Keep the approved designs; change geometry only where the grid requires it, and say what moved.
-- Verify after any change: build passes the padding check; at 32 px dump the alpha of the cursor (full 0/255 coverage on axis-aligned parts); look at the 32 px render zoomed with nearest-neighbor (`preview.html` Pixels view), then at 48 and 64.
+- Verify after any change: build passes the padding check; at 32 px dump the alpha of the cursor (full 0/255 coverage on axis-aligned parts); look at the 32 px render zoomed with nearest-neighbor (`preview.html` Pixels view), then at 48 and 64. SVG: the first `<g>` is named after the cursor, ids are unique and underscore-only.
 - A soft pixel on an axis-aligned line or edge is a bug (off-grid coordinate, odd `SW`, wrong `sharp`), not a style choice.
 - Deliver only modified files, complete, as native file attachments. Send the API zip (`cursors.py`, `gridfit.py`, `main.py`, `preview.py`, Rust manager) only when the API itself changes; otherwise just the new or changed cursor files. No markdown files in the API archive.
 
