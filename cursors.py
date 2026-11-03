@@ -280,12 +280,12 @@ def arrow() -> list[Shape]:
     return [path_shape(outline, "ink")]
 
 
-def path_selection() -> list[Shape]:
+def arrow_path_selection() -> list[Shape]:
     """Path Selection uses the default pointer silhouette."""
     return arrow()
 
 
-def direct_selection() -> list[Shape]:
+def arrow_direct_selection() -> list[Shape]:
     """White pointer for selecting and editing path anchors."""
     return [replace(shape, kind="inverse") for shape in arrow()]
 
@@ -331,7 +331,7 @@ def text_cursor(vertical: bool = False, area: bool = False) -> list[Shape]:
 _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 
-def corner() -> list[Shape]:
+def arrow_corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
     return arrow() + [path_shape(_CORNER_MARK, "line")]
 
@@ -591,32 +591,36 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
 
 
 # Scissors: two blades cross at their midpoints along 3:1 and 1:3 (whole lattice steps); each ends tangent to a ring.
-_BLADE_RUN = 3                  # units along one axis per unit along the other
+_BLADE_RUN = 3                    # units along one axis per unit along the other
 _SCISSORS_PIVOT = 13
-_SCISSORS_HALF_STEPS = 3        # half a blade in lattice steps
-_SCISSORS_RING_OFFSET = (1, -4)  # ring center from the blade end: 4.1 from the blade line, the ring's centerline radius is 4
-_SCISSORS_RING_RADIUS = 3       # hole radius, the outline grows outward
+_SCISSORS_HALF_STEPS = 3          # half a blade in lattice steps
+_SCISSORS_RING_OFFSET = (1, -4)   # ring center from the blade end: 4.1 from the blade line, the ring's centerline radius is 4
+_SCISSORS_RING_RADIUS = 3         # hole radius, the outline grows outward
 
 
-def _blade_point(steps: int) -> tuple[int, int]:
-    return _SCISSORS_PIVOT + _BLADE_RUN * steps, _SCISSORS_PIVOT + steps
+def _blade(pivot: int, half_steps: int) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Tip and end of the blade that passes through the pivot at its midpoint."""
+    reach = _BLADE_RUN * half_steps
+    return (pivot - reach, pivot - half_steps), (pivot + reach, pivot + half_steps)
 
 
-_SCISSORS_TIP = _blade_point(-_SCISSORS_HALF_STEPS)
-_SCISSORS_END = _blade_point(_SCISSORS_HALF_STEPS)
-_SCISSORS_RING = (_SCISSORS_END[0] + _SCISSORS_RING_OFFSET[0], _SCISSORS_END[1] + _SCISSORS_RING_OFFSET[1])
-_SCISSORS_HOTSPOT = (sum(_SCISSORS_TIP) // 2,) * 2   # between the blade tips
-
-
-def scissors() -> list[Shape]:
-    """The second blade and ring mirror the first across the diagonal."""
-    tip, end, ring = _SCISSORS_TIP, _SCISSORS_END, _SCISSORS_RING
+def _scissors(pivot: int, half_steps: int, ring_offset: tuple[int, int], ring_radius: int) -> list[Shape]:
+    """The second blade and ring mirror the first across the diagonal through the pivot."""
+    tip, end = _blade(pivot, half_steps)
+    ring = (end[0] + ring_offset[0], end[1] + ring_offset[1])
     blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
     return [
         path_shape(blades, "line"),
-        _circle(*ring, _SCISSORS_RING_RADIUS, "paper"),
-        _circle(*ring[::-1], _SCISSORS_RING_RADIUS, "paper"),
+        _circle(*ring, ring_radius, "paper"),
+        _circle(*ring[::-1], ring_radius, "paper"),
     ]
+
+
+_SCISSORS_HOTSPOT = (sum(_blade(_SCISSORS_PIVOT, _SCISSORS_HALF_STEPS)[0]) // 2,) * 2   # between the blade tips
+
+
+def scissors() -> list[Shape]:
+    return _scissors(_SCISSORS_PIVOT, _SCISSORS_HALF_STEPS, _SCISSORS_RING_OFFSET, _SCISSORS_RING_RADIUS)
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
@@ -692,11 +696,16 @@ def fill() -> list[Shape]:
 # add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
+_SCISSORS_BADGE_PIVOT = 1   # the blades cross below and right of the arrow tip
+_SCISSORS_BADGE_CANVAS = (38, 38)   # ring outline, halo and padding past the badge origin
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
         "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True)],
         "minus": [path_shape("M-3 0 H3", "line", sharp=True)],
         "ring": [_circle(0, 0, 3, "line")],
+    },
+    "arrow": {
+        "scissors": _scissors(_SCISSORS_BADGE_PIVOT, 2, (0, -2), 1),
     },
     "pen": {
         "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line")],
@@ -708,9 +717,9 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "arrow": (_ARROW_HOTSPOT, arrow),
-    "path_selection": (_ARROW_HOTSPOT, path_selection),
-    "direct_selection": (_ARROW_HOTSPOT, direct_selection),
-    "corner": (_ARROW_HOTSPOT, corner),
+    "arrow_path_selection": (_ARROW_HOTSPOT, arrow_path_selection),
+    "arrow_direct_selection": (_ARROW_HOTSPOT, arrow_direct_selection),
+    "arrow_corner": (_ARROW_HOTSPOT, arrow_corner),
     "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), text_cursor),
     "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: text_cursor(vertical=True)),
     "type_area_horizontal": (_AREA_HOTSPOT, lambda: text_cursor(area=True)),
@@ -761,10 +770,11 @@ for name, (base, badge) in {
     "pen_convert": ("pen", "caret"),
     "pen_close": ("pen", "ring"),
     "color_sampler": ("eyedropper", "ring"),
-    "direct_selection_add": ("direct_selection", "plus"),
-    "direct_selection_delete": ("direct_selection", "minus"),
+    "arrow_direct_selection_add": ("arrow_direct_selection", "plus"),
+    "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
 }.items():
     add_badged(name, base, badge)
+add_badged("arrow_scissors", "arrow", "scissors", _SCISSORS_BADGE_CANVAS)
 
 
 def canvas_size(name: str) -> tuple[float, float]:

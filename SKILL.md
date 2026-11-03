@@ -19,7 +19,8 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - Glyph only, or the default cursor plus one small badge. No clutter, no blobs, no different cursor per tool unless the tool truly needs it. Path Selection reuses the standard pointer; Direct Selection uses the same silhouette with an inverse fill/outline.
 - No red hotspot dot in SVGs or previews. No badges on the default arrow.
 - Move/resize cursors follow the W11 concept: separate arrowheads, vertical and horizontal pairs.
-- Type Tool cursors are named `type_horizontal` and `type_vertical`; both use the same centered I-beam, oriented to match the writing direction.
+- Type Tool: `type_horizontal` and `type_vertical` use the same centered I-beam, oriented to match the writing direction. `type_area_horizontal` and `type_area_vertical` (dragging a text frame) move the beam left (up) and add a framed T on the right (below); vertical is the horizontal one turned a quarter turn clockwise.
+- Names: a cursor derived from another carries its root's name as a prefix, `<root>_<variant>` (`arrow_corner`, `arrow_direct_selection_add`, `pen_close`), so the origin is clear from the name alone; modifiers come last (`_add`, `_delete`). Registry keys, exported files and factory functions use the same name.
 - Arrow-family cursors share a silhouette shifted 2 units up-left, with its hotspot shifted equally, to fit the Corner arc and selection modifiers on 32x32.
 - Corner Tool combines the pointer with a rounded-corner arc.
 - Shape kinds (use these, never raw colors): `paper` outlined light form, `fill` light form with outline over it (folds), `inverse` solid ink form with a paper-colored outline, `ink` solid, `solid` solid with outline (arrowheads), `line`, `dot` (solid circle with halo, always on top). `top=True` draws a detail above everything without halo.
@@ -38,7 +39,8 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - Axis-aligned lines, brackets, arms, sheets, finger edges: `sharp=True` (square caps, mitered corners). Round caps and joins only on organic shapes and arrowheads.
 - Never use half or arbitrary offsets (`3.8`, `27.4`) for anything on the grid. Hand-drawn curves keep their anchors on whole numbers; control points may be free.
 - Diagonals: prefer exact 45 degrees with whole-number endpoints (arrowheads: length = half width; zoom handle edges on `x - y = +-3`; note fold). Other angles are antialiased by nature; keep their anchors on the grid and their tip on a whole pixel.
-- Rotated tools (pen, eyedropper, knife, magnet at 45; scissors, wand, bucket at their tilt): draw upright around a local origin, `transform=(x, y, angle)`, with the origin (the hotspot) on a whole number. Only the origin is snapped for rotated shapes.
+- Rotated tools (pen, eyedropper, knife, magnet at 45; wand, bucket at their tilt): draw upright around a local origin, `transform=(x, y, angle)`, with the origin (the hotspot) on a whole number. Only the origin is snapped for rotated shapes.
+- Scissors are lattice geometry: blades run along 3:1 and 1:3 between whole points and cross at their midpoints, each ring is tangent to its blade end (whole center and radius, within 0.15 px). `_scissors()` builds both the tool and the `arrow_scissors` badge.
 - Circles: whole radius and whole center keep them symmetric; the fitter moves the center to a pixel center when the outer diameter is odd.
 - Equal gaps and spacings are whole numbers (text rows step 4, finger width 4, gap 2).
 - Hotspot is a whole grid point, defined once in `CURSORS`, on the feature the user aims with. Hotspot pixel = `pixel(hotspot * size / GRID)` (round half up, never `round()`).
@@ -54,7 +56,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 ## Badges
 
 - Glyphs are drawn once around their own origin on whole units; none reaches farther right or down than `_BADGE_HALF_SIZE` (3). All badges share `BADGE_ORIGIN` in the bottom-right corner of the allowed region.
-- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`) keep bulky marks from constraining others.
+- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`; `arrow`: `scissors`) keep bulky marks from constraining others. `arrow_scissors` is the only cursor with a grown canvas (38).
 - New badged cursor: one `add_badged(name, base, badge)` entry. Never copy a base cursor's shapes.
 
 ## Workflow
