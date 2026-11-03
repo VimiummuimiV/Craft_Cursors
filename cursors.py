@@ -69,8 +69,9 @@ class Shape:
       is snapped to the pixel grid, a rotated one only has its origin snapped
     sharp: square line ends and mitered corners, for axis-aligned geometry that must stay crisp
     name: element id in the SVG, unique inside a cursor (its halo and fill elements add _halo / _fill)
-    group: the <g> that holds the shape's elements; empty = the cursor's own group. A group keeps its own
-      painting order (halo, outline, fill, details)
+    group: the <g> that holds the shape's elements; empty = the cursor's own group. A cursor with a badge
+      splits into the base cursor's group and `badge`, nested under a group named after the cursor.
+      A group keeps its own painting order (halo, outline, fill, details)
     """
     kind: str
     path: str = ""
@@ -109,8 +110,8 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
 
 
 def render(shapes: list[Shape], fit: Fit, theme: str | None = None, cursor: str = "cursor") -> str:
-    """theme: 'dark' | 'light' | None (= THEME). One <g> per group, the cursor's own one is named `cursor`;
-    inside a group the painting order is halo, outline, fill, details."""
+    """theme: 'dark' | 'light' | None (= THEME). A cursor of one group is a single <g> named `cursor`; several groups nest in it.
+    Inside a group the painting order is halo, outline, fill, details."""
     colors = THEMES[theme or THEME]
     ink, paper, halo = colors["ink"], colors["paper"], colors["halo"]
     stroke, halo_width = fit.stroke, fit.halo
@@ -168,7 +169,8 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None, cursor: str 
     groups: dict[str, list[str]] = {}
     for group, element in (*halos, *outlines, *covers, *tops):
         groups.setdefault(group or cursor, []).append(element)
-    return "\n".join("\n".join([f'<g id="{group}">', *elements, "</g>"]) for group, elements in groups.items())
+    parts = ["\n".join([f'<g id="{group}">', *elements, "</g>"]) for group, elements in groups.items()]
+    return parts[0] if len(parts) == 1 else "\n".join([f'<g id="{cursor}">', *parts, "</g>"])
 
 
 # ============================ GEOMETRY ====================================
@@ -348,7 +350,8 @@ _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 def arrow_corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line", name="badge_corner_arc", group="badge")]
+    return [replace(shape, group="arrow") for shape in arrow()] + [
+        path_shape(_CORNER_MARK, "line", name="badge_corner_arc", group="badge")]
 
 
 _LENS_RADIUS = 8
@@ -790,7 +793,7 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
     placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0), name=f"badge_{shape.name}", group="badge")
               for shape in shapes]
-    CURSORS[name] = (hot, lambda: base_factory() + placed)
+    CURSORS[name] = (hot, lambda: [replace(shape, group=base) for shape in base_factory()] + placed)
     if canvas is not None:
         CANVAS[name] = canvas
     elif base in CANVAS:
