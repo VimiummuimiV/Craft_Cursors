@@ -840,20 +840,19 @@ _BADGE_HALF_SIZE = 3
 _BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
 _SEGMENT_HALF_WIDTH = 4      # curve badge: arch ends from the origin
 _SEGMENT_END_Y = 2
-_SEGMENT_POINT_HALF_SIZE = _BADGE_HALF_SIZE / 2   # curve badge: end point squares, half the anchor square
+_SEGMENT_POINT_HALF_SIZE = 2   # curve badge: end point squares
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
 _BADGE_SHIFT = {"arrow": 3, "pen": 2, "arrow_direct_selection_anchor": 1}   # base or cursor -> units its badges move right and down from _BADGE_ORIGIN
 
 
 def _segment_badge() -> list[_Shape]:
-    """Arch with a square at each end, flush with the outer edge and the end of the line."""
+    """Arch with a square centered on each end."""
     width, end_y, half = _SEGMENT_HALF_WIDTH, _SEGMENT_END_Y, _SEGMENT_POINT_HALF_SIZE
-    point_x, point_y = width + SW / 2 - half, end_y + SW / 2 - half
     return [
         _path_shape(f"M{-width} {end_y} C{-width} -4 {width} -4 {width} {end_y}", "line", name="segment_curve"),
-        _square(-point_x, point_y, half, "ink", name="segment_start"),
-        _square(point_x, point_y, half, "ink", name="segment_end"),
+        _square(-width, end_y, half, "ink", name="segment_start"),
+        _square(width, end_y, half, "ink", name="segment_end"),
     ]
 
 
