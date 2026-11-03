@@ -838,6 +838,8 @@ def _help() -> list[_Shape]:
 # _add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 _BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
+_WIDTH_HALF_LENGTH = 5       # width badge: lemon tips from the origin
+_WIDTH_BULGE = 4             # width badge: control point height, the lemon rises half of it
 _SEGMENT_HALF_WIDTH = 4      # curve badge: arch ends from the origin
 _SEGMENT_END_Y = 2
 _SEGMENT_POINT_HALF_SIZE = 2   # curve badge: end point squares
@@ -864,6 +866,8 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
         "ring": [_circle(0, 0, 3, "line", name="ring")],
         "anchor": [_square(0, 0, _BADGE_HALF_SIZE, "ink", name="anchor")],
         "segment": _segment_badge(),
+        "width": [_path_shape(f"M{-_WIDTH_HALF_LENGTH} 0 Q0 {-_WIDTH_BULGE} {_WIDTH_HALF_LENGTH} 0 "
+                              f"Q0 {_WIDTH_BULGE} {-_WIDTH_HALF_LENGTH} 0 Z", "line", name="width")],
         "not_allowed": _not_allowed_mark(_NOT_ALLOWED_BADGE_RADIUS),
         "help": _help_mark(_HELP_BADGE_HALF_WIDTH),
     },
@@ -974,6 +978,7 @@ for _name, (_base, _badge) in {
     "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
     "arrow_direct_selection_anchor": ("arrow_direct_selection", "anchor"),
     "arrow_direct_selection_segment": ("arrow_direct_selection", "segment"),
+    "arrow_direct_selection_width": ("arrow_direct_selection", "width"),
 }.items():
     _add_badged(_name, _base, _badge)
 _add_badged("arrow_scissors", "arrow", "scissors")
