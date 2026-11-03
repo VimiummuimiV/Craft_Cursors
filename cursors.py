@@ -833,7 +833,7 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
     "pen": {
         "wave": [_path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line", name="wave")],
         "curve": [_path_shape("M-5 3 C-1 3 -1 -3 3 -3", "line", name="curve")],
-        "arc": [_path_shape("M0 -4 A3 3 0 0 1 -4 0", "line", name="arc")],
+        "arc": [_path_shape("M3 -3 A4 4 0 0 0 -3 3", "line", name="arc")],
         "caret": [_path_shape("M-3 3 L0 -1 L3 3", "line", name="caret")],
     },
 }
