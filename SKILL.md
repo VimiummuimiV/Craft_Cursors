@@ -1,6 +1,6 @@
 ---
 name: cursor-style-rules
-description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/VectorCraft cursor set (cursors.py, gridfit.py, main.py, preview.py) - 32 grid, 2 px outline and halo, grid fitting per size, hotspots, badges, padding, delivery rules. Use when drawing, editing, reviewing or exporting any cursor (SVG, PNG, .cur) of this project.
+description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/VectorCraft... cursor set (cursors.py, gridfit.py, main.py, preview.py) - 32 grid, 2 px outline and halo, grid fitting per size, hotspots, badges, padding, delivery rules. Use when drawing, editing, reviewing or exporting any cursor (SVG, PNG, .cur) of this project.
 ---
 
 # Cursor Set Rules
