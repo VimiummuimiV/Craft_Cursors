@@ -755,7 +755,7 @@ _HELP_DOT_RATIO = 0.5       # dot radius / mark half width
 _HELP_DOT_DEPTH = 2.5       # leaves a one-unit gap below the hook's halo
 _HELP_STANDALONE_DOT_DEPTH = 8 / 3  # centers the dot on the next horizontal grid line
 _HELP_HOOK_HEIGHT = 7 / 3   # the hook's actual top lands on a whole grid unit
-_HELP_STANDALONE_SHIFT = -2  # the mark is taller above the origin than below it
+_HELP_STANDALONE_SHIFT = -1
 
 
 def _not_allowed_mark(radius: float) -> list[_Shape]:
