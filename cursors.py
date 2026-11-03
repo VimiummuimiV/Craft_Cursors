@@ -16,6 +16,7 @@ from config import (
 from gridfit import (
     Fit,
     number,
+    path_extent,
     pixel,
 )
 
@@ -579,7 +580,6 @@ _ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
 _ARROW_HEAD_SIZE = 4
 _MOVE_BADGE_REACH = 8        # neighbouring head corners stay (reach - 2 * head size) * sqrt(2) apart
 _MOVE_BADGE_HEAD_SIZE = 3
-_MOVE_BADGE_CENTER = 3       # cross center from the badge origin: the heads stay clear of the arrow tip
 
 
 def _arrow_head(direction_x: int, direction_y: int, center: int, reach: int, head_size: int) -> str:
@@ -704,17 +704,19 @@ def fill() -> list[Shape]:
 
 
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
-# If an element does not fit into the base's 32x32 grid, the canvas of that cursor grows to the right
-# and down (the hotspot stays where it was, the origin is the top left corner).
-# Every glyph is drawn once around its own origin (0, 0) on whole units and no glyph reaches farther right
-# or down than _BADGE_HALF_SIZE, so all badges share one origin in the bottom right corner of the allowed region.
+# Every glyph is drawn once around its own origin (0, 0) on whole units. A small glyph (no farther than
+# _BADGE_HALF_SIZE from it) sits on BADGE_ORIGIN in the bottom right corner of the allowed region; _BADGE_SHIFT
+# moves the badges of a base right and down from there: clear of the base, or room for a bulky glyph.
+# The canvas of the cursor follows from where its badge ends (the hotspot stays where it was, the origin is the
+# top left corner), so a canvas is never set by hand.
 #   "shared" - universal marks (+, -), usable on any cursor;
 #   "<base>" - marks of one tool, so a bulky mark never constrains the others.
 # add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
-_SCISSORS_BADGE_INSET = -3   # blade tip, relative to BADGE_ORIGIN: the scissors stay clear of the arrow tip
-_LARGE_BADGE_CANVAS = (40, 40)   # outline, halo and padding of a bulky badge past the badge origin
+_SCISSORS_BADGE_LENGTH = 4
+_SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
+_BADGE_SHIFT = {"arrow": 3, "pen": 2}   # base -> units its badges move right and down from BADGE_ORIGIN
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
         "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
@@ -722,8 +724,8 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         "ring": [_circle(0, 0, 3, "line", name="ring")],
     },
     "arrow": {
-        "scissors": _scissors(_SCISSORS_BADGE_INSET, 4, (0, -2), 1),
-        "move": _arrow_cross(True, True, _MOVE_BADGE_CENTER, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE, flat=True),
+        "scissors": _scissors(_SCISSORS_BADGE_INSET, _SCISSORS_BADGE_LENGTH, (0, -2), 1),
+        "move": _arrow_cross(True, True, 0, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE, flat=True),
     },
     "pen": {
         "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line", name="wave")],
@@ -776,19 +778,36 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
 
 CANVAS: dict[str, tuple[float, float]] = {}
 
+def canvas_size(name: str) -> tuple[float, float]:
+    return CANVAS.get(name, (GRID, GRID))
 
-def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | None = None) -> None:
-    """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base.
-    canvas: size in grid units if the badge goes beyond the base's 32x32 grid."""
+
+# How far the halo of each shape kind sticks out past its path.
+_KIND_REACH = {"paper": PAPER_REACH, "line": LINE_REACH, "fill": LINE_REACH, "solid": LINE_REACH,
+               "ink": H, "inverse": H, "dot": H}
+
+
+def _extent(shape: Shape) -> tuple[float, float]:
+    """Farthest right and down the shape's halo reaches from its origin."""
+    reach = _KIND_REACH[shape.kind]
+    if shape.circle is not None:
+        center_x, center_y, radius = shape.circle
+        return center_x + radius + reach, center_y + radius + reach
+    far_x, far_y = path_extent(shape.path)
+    return far_x + reach, far_y + reach
+
+
+def add_badged(name: str, base: str, badge: str) -> None:
+    """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base; the square canvas grows
+    past the base's if the shifted badge, with its halo and PADDING, does not fit."""
     hot, base_factory = CURSORS[base]
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
-    placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0), name=f"badge_{shape.name}", group="badge")
+    origin = BADGE_ORIGIN + _BADGE_SHIFT.get(base, 0)
+    placed = [replace(shape, transform=(origin, origin, 0), name=f"badge_{shape.name}", group="badge")
               for shape in shapes]
     CURSORS[name] = (hot, lambda: [replace(shape, group=base) for shape in base_factory()] + placed)
-    if canvas is not None:
-        CANVAS[name] = canvas
-    elif base in CANVAS:
-        CANVAS[name] = CANVAS[base]
+    side = max(*canvas_size(base), *(math.ceil(origin + max(_extent(shape)) + PADDING) for shape in shapes))
+    CANVAS[name] = (side, side)
 
 
 for name, (base, badge) in {
@@ -803,12 +822,8 @@ for name, (base, badge) in {
     "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
 }.items():
     add_badged(name, base, badge)
-add_badged("arrow_scissors", "arrow", "scissors", _LARGE_BADGE_CANVAS)
-add_badged("arrow_move", "arrow", "move", _LARGE_BADGE_CANVAS)
-
-
-def canvas_size(name: str) -> tuple[float, float]:
-    return CANVAS.get(name, (GRID, GRID))
+add_badged("arrow_scissors", "arrow", "scissors")
+add_badged("arrow_move", "arrow", "move")
 
 
 def image_side(name: str, size: int) -> int:

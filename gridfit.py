@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 _PATH_TOKEN = re.compile(r"[A-Za-z]|-?\d*\.?\d+")
@@ -18,6 +19,42 @@ def pixel(value: float) -> int:
 
 def number(value: float) -> str:
     return f"{round(value, 3) + 0.0:g}"
+
+
+def _segments(data: str) -> Iterator[tuple[str, list[float]]]:
+    """Absolute path data -> (command, arguments), one item per argument set."""
+    tokens = _PATH_TOKEN.findall(data)
+    command, index = "", 0
+    while index < len(tokens):
+        if tokens[index].isalpha():
+            command = tokens[index]
+            index += 1
+            if command not in _ARGUMENT_COUNTS:
+                raise ValueError(f"unsupported path command {command!r}: only absolute commands are fitted")
+            if command == "Z":
+                yield command, []
+                continue
+        count = _ARGUMENT_COUNTS[command]
+        yield command, [float(token) for token in tokens[index:index + count]]
+        index += count
+
+
+def path_extent(data: str) -> tuple[float, float]:
+    """Farthest x and y of the endpoints and control points of absolute path data (arc bulges are not counted)."""
+    xs: list[float] = []
+    ys: list[float] = []
+    for command, values in _segments(data):
+        if command == "H":
+            xs.append(values[0])
+        elif command == "V":
+            ys.append(values[0])
+        elif command == "A":
+            xs.append(values[5])
+            ys.append(values[6])
+        else:
+            xs.extend(values[0::2])
+            ys.extend(values[1::2])
+    return max(xs), max(ys)
 
 
 @dataclass(frozen=True)
@@ -53,11 +90,9 @@ class Fit:
         """Absolute path data in grid units -> path data in pixels. With snap every endpoint lands on the
         pixel grid and its control points move with it, so curves keep their shape."""
         scale = self.scale
-        tokens = _PATH_TOKEN.findall(data)
         parts: list[str] = []
         current = (0.0, 0.0)   # previous endpoint in pixels
         shift = (0.0, 0.0)     # how far snapping moved it
-        command, index = "", 0
 
         def raw(x: float, y: float) -> tuple[float, float]:
             return (x + origin[0]) * scale, (y + origin[1]) * scale
@@ -73,18 +108,10 @@ class Fit:
             unsnapped = raw(x, y)
             return f"{number(unsnapped[0] + moved_by[0])} {number(unsnapped[1] + moved_by[1])}"
 
-        while index < len(tokens):
-            if tokens[index].isalpha():
-                command = tokens[index]
-                index += 1
-                if command not in _ARGUMENT_COUNTS:
-                    raise ValueError(f"unsupported path command {command!r}: only absolute commands are fitted")
-                if command == "Z":
-                    parts.append("Z")
-                    continue
-            count = _ARGUMENT_COUNTS[command]
-            values = [float(token) for token in tokens[index:index + count]]
-            index += count
+        for command, values in _segments(data):
+            if command == "Z":
+                parts.append("Z")
+                continue
             if command == "H":
                 (placed_x, _), (shift_x, _) = endpoint(values[0], 0)
                 current, shift = (placed_x, current[1]), (shift_x, shift[1])

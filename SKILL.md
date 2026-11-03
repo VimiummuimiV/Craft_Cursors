@@ -9,7 +9,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 - `config.py` - the single place for every setting (see Config). Imports nothing from the project.
 - `cursors.py` - derived style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
-- `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`). Knows nothing about cursors.
+- `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`, `path_extent`; one path parser shared by fitting and extents). Knows nothing about cursors.
 - `main.py` - build: padding check, SVG/PNG/.cur export, stale generated-file cleanup, manifest. `preview.py` - preview.html and contact sheets.
 - `requirements.txt` - `PyQt6` only (PNG/.cur rendering, contact sheets). `config.py`, `cursors.py` and `gridfit.py` use the standard library; `preview.html` loads html2canvas from a CDN for its Save PNG button.
 - Output: `svg/<theme>/name.svg`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `pip install -r requirements.txt`, then `python main.py [out]`; the folder argument is optional, `OUTPUT_FOLDER` is the default.
@@ -41,7 +41,7 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - `SW = 2` (outline and line thickness), `H = 2` (halo width), both in `config.py`. Both must stay whole pixels and even, so centered lines land on pixel edges. `GRID = 32` is fixed: all geometry is drawn on it.
 - `PADDING = 1` (`config.py`): every cursor, halo included, stays 1 unit from all four canvas edges. `check_padding()` stops the build and lists offenders.
 - Derived: `LINE_REACH = SW/2 + H`, `PAPER_REACH = SW + H`, `LINE_INSET = PADDING + LINE_REACH` (nearest a line centerline may get to an edge, 4), `LINE_FAR_EDGE = GRID - LINE_INSET` (28). Line ends, arrow tips and tool tips use these, never literals.
-- Canvas grows only when a badge does not fit (`CANVAS`); when cursor artwork is translated, translate its hotspot equally.
+- The canvas is 32x32 unless a badge needs more room; then it grows (square, right and down) by itself, see Badges. Never set a canvas by hand. When cursor artwork is translated, translate its hotspot equally.
 
 ## Pixel-perfect rules
 
@@ -65,10 +65,11 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 ## Badges
 
-- Glyphs are drawn once around their own origin on whole units; none reaches farther right or down than `_BADGE_HALF_SIZE` (3). All badges share `BADGE_ORIGIN` in the bottom-right corner of the allowed region.
-- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`; `arrow`: `scissors`, `move`) keep bulky marks from constraining others. `arrow_scissors` and `arrow_move` are the cursors with a grown canvas (40x40, `_LARGE_BADGE_CANVAS`).
-- A badge never sits flush against the base: keep about 3 px of clear space between the badge ink and the base ink at 32 px, or the pair does not read.
-- `_arrow_cross()` builds the move/resize cursors and the `arrow_move` badge (`flat=True`: unoutlined heads, round-capped shaft, so the shaft halo cannot poke out past the heads). Neighbouring head corners must stay `(reach - 2 * head size) * sqrt(2)` apart, at least about 2.8 px, otherwise the halos fuse into one blob. The badge cross is offset by `_MOVE_BADGE_CENTER` from the badge origin to stay clear of the arrow tip.
+- Glyphs are drawn once around their own origin (0, 0) on whole units; a glyph is centered on it (scissors: the crossing point, move: the cross center). Small glyphs reach no farther than `_BADGE_HALF_SIZE` (3) and share `BADGE_ORIGIN` in the bottom-right corner of the allowed region; bulky glyphs are allowed, they only need a shift.
+- `shared` group: `plus`, `minus`, `ring`. Tool groups (`pen`: `wave`, `curve`, `caret`; `arrow`: `scissors`, `move`) keep bulky marks from constraining others.
+- A badge never sits flush against the base: keep about 3 px of clear space between the badge ink and the base ink at 32 px, or the pair does not read. Measure it (render base group and badge group apart at 10 px per unit, ink-to-ink distance), do not judge by eye.
+- One mechanism places every badge: `_BADGE_SHIFT` (base -> units its badges move right and down from `BADGE_ORIGIN`; `arrow`: 3, `pen`: 2, absent = 0). It gives clearance from the base or room for a bulky glyph; never bake an offset into a glyph. The canvas is derived: `add_badged()` takes the farthest reach of the glyph's shapes (`_extent`: path extent plus the halo of the kind) from the shifted origin plus `PADDING`, rounded up, square, never smaller than the base's. So there is no hand-set canvas, no 40x40 constant, and no bigger canvas for cursors that do not need it (`pen_*` 34, `arrow_scissors` 40, `arrow_move` 39, the rest 32). A bigger canvas never creates clearance, only room. The hotspot never moves.
+- `_arrow_cross()` builds the move/resize cursors and the `arrow_move` badge (`flat=True`: unoutlined heads, round-capped shaft, so the shaft halo cannot poke out past the heads). Neighbouring head corners must stay `(reach - 2 * head size) * sqrt(2)` apart, at least about 2.8 px, otherwise the halos fuse into one blob. The badge cross is centered on its origin; the arrow shift keeps it clear of the arrow tip.
 - New badged cursor: one `add_badged(name, base, badge)` entry. Never copy a base cursor's shapes.
 
 ## SVG structure
