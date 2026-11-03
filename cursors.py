@@ -23,11 +23,11 @@ from gridfit import (
 # ============================== DERIVED ====================================
 # Allowed region: every cursor, halo included, stays at least PADDING away from all four canvas edges.
 # Shapes derived from the constants below follow PADDING automatically; hand-drawn geometry
-# (hands, arrow, scissors, wand, bucket) is verified by check_padding() in main.py.
-LINE_REACH = SW / 2 + H            # how far a line's halo sticks out past its centerline
-PAPER_REACH = SW + H               # same for outlined forms (stroke on both sides of the edge)
-LINE_INSET = PADDING + LINE_REACH  # nearest a line's centerline may get to a canvas edge
-LINE_FAR_EDGE = GRID - LINE_INSET  # farthest a line's centerline may reach
+# (hands, arrow, scissors, wand, bucket) is verified by the padding check in main.py.
+_LINE_REACH = SW / 2 + H            # how far a line's halo sticks out past its centerline
+_PAPER_REACH = SW + H               # same for outlined forms (stroke on both sides of the edge)
+_LINE_INSET = PADDING + _LINE_REACH  # nearest a line's centerline may get to a canvas edge
+_LINE_FAR_EDGE = GRID - _LINE_INSET  # farthest a line's centerline may reach
 # ===========================================================================
 
 # Cursor rotation angles, in degrees.
@@ -39,13 +39,13 @@ _CANVAS_CENTER = GRID // 2
 _CENTER_DOT_RADIUS = 2
 
 # Shared by eyedropper, pen nib, and knife.
-_TOOL_TIP = (PADDING + PAPER_REACH, GRID - PADDING - PAPER_REACH)
+_TOOL_TIP = (PADDING + _PAPER_REACH, GRID - PADDING - _PAPER_REACH)
 _TOOL_TRANSFORM = (*_TOOL_TIP, _TOOL_TIP_ANGLE)
 _TOOL_LENGTH = 29.5
 
 
 @dataclass
-class Shape:
+class _Shape:
     """A single cursor element, drawn in grid units around its own origin.
 
     kind:
@@ -84,7 +84,7 @@ def _flat(color: str) -> str:
     return f'fill="{color}" stroke="none"'
 
 
-def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
+def _place(shape: _Shape, fit: Fit) -> Callable[..., str]:
     """Returns tag(attrs, ident, grow=0): the shape as an SVG element in pixel units; grow widens a circle."""
     origin_x, origin_y, angle = shape.transform
     rotated = angle != 0
@@ -101,7 +101,7 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
                                            f'r="{number(radius + grow)}" {attrs}{rotation}/>')
 
 
-def render(shapes: list[Shape], fit: Fit, theme: str, cursor: str = "cursor") -> str:
+def _render(shapes: list[_Shape], fit: Fit, theme: str, cursor: str = "cursor") -> str:
     """theme: a key of THEMES. A cursor of one group is a single <g> named `cursor`; several groups nest in it.
     Inside a group the painting order is halo, outline, fill, details."""
     colors = THEMES[theme]
@@ -172,7 +172,7 @@ def _path(*segments: str) -> str:
     return " ".join(segments)
 
 
-def path_shape(
+def _path_shape(
     path_data: str,
     kind: str,
     top: bool = False,
@@ -180,17 +180,17 @@ def path_shape(
     sharp: bool = False,
     name: str = "",
     group: str = "",
-) -> Shape:
-    return Shape(kind, path_data, None, top, transform, sharp, name, group)
+) -> _Shape:
+    return _Shape(kind, path_data, None, top, transform, sharp, name, group)
 
 
 def _circle(center_x: float, center_y: float, radius: float, kind: str, top: bool = False,
-            transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "") -> Shape:
-    return Shape(kind, "", (center_x, center_y, radius), top, transform, name=name)
+            transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "") -> _Shape:
+    return _Shape(kind, "", (center_x, center_y, radius), top, transform, name=name)
 
 
 def _dot(center_x: float, center_y: float, radius: float,
-         transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "center") -> Shape:
+         transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "center") -> _Shape:
     return _circle(center_x, center_y, radius, "dot", transform=transform, name=name)
 
 
@@ -230,7 +230,7 @@ def _corner_curves(start: tuple[float, float], end: tuple[float, float], corner:
     return " ".join(curves)
 
 
-def rounded_polygon(points: list[tuple[float, float]], radius: float | list[float]) -> str:
+def _rounded_polygon(points: list[tuple[float, float]], radius: float | list[float]) -> str:
     """Closed path through `points` with every corner replaced by a circular arc drawn as one or two cubics
     (two or three nodes). radius is shared by all corners or given per corner; 0 keeps a corner sharp."""
     count = len(points)
@@ -253,8 +253,8 @@ def rounded_polygon(points: list[tuple[float, float]], radius: float | list[floa
     return _path(*segments, "Z")
 
 
-def rectangle(left: float, top: float, right: float, bottom: float, radius: float = 0) -> str:
-    return rounded_polygon([(left, top), (right, top), (right, bottom), (left, bottom)], radius)
+def _rectangle(left: float, top: float, right: float, bottom: float, radius: float = 0) -> str:
+    return _rounded_polygon([(left, top), (right, top), (right, bottom), (left, bottom)], radius)
 
 
 _STAR_POINTS = 5
@@ -262,7 +262,7 @@ _STAR_INNER_RATIO = 0.45     # inner point radius / outer point radius
 _STAR_ROUNDING_RATIO = 0.1   # corner radius / outer point radius
 
 
-def star(outer_radius: float) -> str:
+def _star(outer_radius: float) -> str:
     """Grid-snapped star with _STAR_POINTS outer and as many inner points, all corners rounded."""
     points = []
     for index in range(2 * _STAR_POINTS):
@@ -270,13 +270,13 @@ def star(outer_radius: float) -> str:
         angle = math.radians(-90 + index * 180 / _STAR_POINTS)
         x, y = radius * math.cos(angle), radius * math.sin(angle)
         points.append((int(math.copysign(pixel(abs(x)), x)), int(math.copysign(pixel(abs(y)), y))))
-    return rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
+    return _rounded_polygon(points, pixel(outer_radius * _STAR_ROUNDING_RATIO))
 
 
 _ARROW_HOTSPOT = (5, 3)
 
 
-def arrow() -> list[Shape]:
+def _arrow() -> list[_Shape]:
     """Default pointer: rounded triangle, minimal points (two per corner), the top-left corner is the hotspot.
     The left edge is a whole-pixel vertical, every anchor sits on a grid point."""
     start = "M4 5"
@@ -286,17 +286,17 @@ def arrow() -> list[Shape]:
     concave_lower_edge = "C14 20.4 9.5 22.4 6 24.5"
     bottom_left_corner = "C5 25.1 4 25 4 24"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
-    return [path_shape(outline, "ink", name="pointer")]
+    return [_path_shape(outline, "ink", name="pointer")]
 
 
-def arrow_path_selection() -> list[Shape]:
+def _arrow_path_selection() -> list[_Shape]:
     """Path Selection uses the default pointer silhouette."""
-    return arrow()
+    return _arrow()
 
 
-def arrow_direct_selection() -> list[Shape]:
+def _arrow_direct_selection() -> list[_Shape]:
     """White pointer for selecting and editing path anchors."""
-    return [replace(shape, kind="inverse") for shape in arrow()]
+    return [replace(shape, kind="inverse") for shape in _arrow()]
 
 
 _TEXT_CAP_HALF = 3       # half width of the I-beam caps
@@ -318,36 +318,36 @@ def _turn_path(path: str) -> str:
     return _POINT.sub(lambda point: " ".join(map(number, _turn_point(float(point[1]), float(point[2])))), path)
 
 
-def text_cursor(vertical: bool = False, area: bool = False) -> list[Shape]:
+def _text_cursor(vertical: bool = False, area: bool = False) -> list[_Shape]:
     """I-beam insertion cursor. Area text (dragging a text frame) moves the beam left and adds a framed T
     on the right. Vertical text turns everything a quarter turn clockwise: beam on top, frame below."""
-    cap, near, far, center = _TEXT_CAP_HALF, LINE_INSET, LINE_FAR_EDGE, _CANVAS_CENTER
+    cap, near, far, center = _TEXT_CAP_HALF, _LINE_INSET, _LINE_FAR_EDGE, _CANVAS_CENTER
     beam_x = _TEXT_BEAM_X if area else center
     beam = _path(f"M{beam_x - cap} {near} L{beam_x + cap} {near}", f"M{beam_x} {near} L{beam_x} {far}",
                  f"M{beam_x - cap} {far} L{beam_x + cap} {far}")
-    shapes = [path_shape(beam, "line", sharp=True, name="beam")]
+    shapes = [_path_shape(beam, "line", sharp=True, name="beam")]
     if area:
         tee, side, inset = _TEXT_LETTER_HALF, _TEXT_FRAME_SIDE, SW // 2
         left, top = beam_x + cap + SW + _TEXT_GAP, center - side // 2
         right, bottom, middle = left + side, top + side, left + side // 2
         glyph = _path(f"M{middle - tee} {center - tee} L{middle + tee} {center - tee}",
                       f"M{middle} {center - tee} L{middle} {center + tee}")
-        shapes += [path_shape(rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True, name="frame"),
-                   path_shape(glyph, "line", top=True, sharp=True, name="frame_letter")]
+        shapes += [_path_shape(_rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True, name="frame"),
+                   _path_shape(glyph, "line", top=True, sharp=True, name="frame_letter")]
     return [replace(shape, path=_turn_path(shape.path)) for shape in shapes] if vertical else shapes
 
 
 _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 
-def arrow_corner() -> list[Shape]:
+def _arrow_corner() -> list[_Shape]:
     """Pointer with a rounded-corner arc."""
-    return [replace(shape, group="arrow") for shape in arrow()] + [
-        path_shape(_CORNER_MARK, "line", name="badge_corner_arc", group="badge")]
+    return [replace(shape, group="arrow") for shape in _arrow()] + [
+        _path_shape(_CORNER_MARK, "line", name="badge_corner_arc", group="badge")]
 
 
 _LENS_RADIUS = 8
-_LENS_CENTER = PADDING + PAPER_REACH + _LENS_RADIUS   # the lens touches the top left of the allowed region
+_LENS_CENTER = PADDING + _PAPER_REACH + _LENS_RADIUS   # the lens touches the top left of the allowed region
 _ZOOM_SIGN_ARM = 4
 _HANDLE_SIDE = 1.5               # offset of the handle edges from its axis on each grid axis: they run on x - y = +-3
 _HALF_DIAGONAL = math.sqrt(0.5)  # cos(45 degrees): the handle runs along the grid diagonal
@@ -356,7 +356,7 @@ _HANDLE_START = _LENS_CENTER + 6   # the flat end hides under the lens outline
 _HANDLE_END = GRID - PADDING - H - _HANDLE_RADIUS   # round end touches the bottom right of the allowed region
 
 
-def zoom(sign: str) -> list[Shape]:
+def _zoom(sign: str) -> list[_Shape]:
     center, arm, side = _LENS_CENTER, _ZOOM_SIGN_ARM, _HANDLE_SIDE
     handle = _path(f"M{number(_HANDLE_START - side)} {number(_HANDLE_START + side)}",
                    f"L{number(_HANDLE_START + side)} {number(_HANDLE_START - side)}",
@@ -369,19 +369,19 @@ def zoom(sign: str) -> list[Shape]:
     bars = _path(horizontal_bar, vertical_bar) if sign == "+" else horizontal_bar
     return [
         _circle(center, center, _LENS_RADIUS, "paper", name="lens"),
-        path_shape(handle, "ink", name="handle"),
-        path_shape(bars, "line", top=True, sharp=True, name="sign"),
+        _path_shape(handle, "ink", name="handle"),
+        _path_shape(bars, "line", top=True, sharp=True, name="sign"),
     ]
 
 
-def eyedropper() -> list[Shape]:
+def _eyedropper() -> list[_Shape]:
     tip, neck, tube_end = "M0 0", "-7", "-17.5"
     tube = _path(tip, f"L-2.7 {neck}", f"L-2.7 {tube_end}", f"L2.7 {tube_end}", f"L2.7 {neck}", "Z")
-    cap = rounded_polygon([(-4.5, -21.5), (4.5, -21.5), (4.5, -17), (-4.5, -17)], 1.2)
-    bulb = rectangle(-3.5, -_TOOL_LENGTH, 3.5, -19.5, 3.5)
+    cap = _rounded_polygon([(-4.5, -21.5), (4.5, -21.5), (4.5, -17), (-4.5, -17)], 1.2)
+    bulb = _rectangle(-3.5, -_TOOL_LENGTH, 3.5, -19.5, 3.5)
     return [
-        path_shape(_path(tube, cap), "paper", transform=_TOOL_TRANSFORM, name="tube"),
-        path_shape(bulb, "ink", transform=_TOOL_TRANSFORM, name="bulb"),
+        _path_shape(_path(tube, cap), "paper", transform=_TOOL_TRANSFORM, name="tube"),
+        _path_shape(bulb, "ink", transform=_TOOL_TRANSFORM, name="bulb"),
     ]
 
 
@@ -416,17 +416,17 @@ def _finger(left: float, tip_top: float) -> str:
             f"L{right} {_KNUCKLE_Y}")
 
 
-def _hand(pose: str) -> list[Shape]:
+def _hand(pose: str) -> list[_Shape]:
     thumb, tips = _HAND_POSES[pose]
     fingers = [_finger(_FINGERS_LEFT + index * _FINGER_WIDTH, tip_top) for index, tip_top in enumerate(tips)]
     outline = _path(_HAND_START, _HAND_WRIST, _HAND_THUMBS[thumb], *fingers, _HAND_PALM, "Z")
-    return [path_shape(outline, "fill", name="hand")]
+    return [_path_shape(outline, "fill", name="hand")]
 
 
 _NIB_SLIT = 13.14  # slit length from the tip; the dot sits at its end
 
 
-def pen_nib() -> list[Shape]:
+def _pen_nib() -> list[_Shape]:
     tip = "M0 0"
     left_flank = "L-5.4 -11.79"
     left_shoulder = "Q-6 -17.97 -4.2 -20.44"
@@ -434,9 +434,9 @@ def pen_nib() -> list[Shape]:
     right_shoulder = "Q6 -17.97 5.4 -11.79"
     nib = _path(tip, left_flank, left_shoulder, top_edge, right_shoulder, "Z")
     return [
-        path_shape(nib, "paper", transform=_TOOL_TRANSFORM, name="nib"),
-        path_shape(rectangle(-4.2, -_TOOL_LENGTH, 4.2, -19.32, 1.6), "ink", transform=_TOOL_TRANSFORM, name="cap"),
-        path_shape(f"M0 0 V{-_NIB_SLIT}", "line", top=True, transform=_TOOL_TRANSFORM, name="slit"),
+        _path_shape(nib, "paper", transform=_TOOL_TRANSFORM, name="nib"),
+        _path_shape(_rectangle(-4.2, -_TOOL_LENGTH, 4.2, -19.32, 1.6), "ink", transform=_TOOL_TRANSFORM, name="cap"),
+        _path_shape(f"M0 0 V{-_NIB_SLIT}", "line", top=True, transform=_TOOL_TRANSFORM, name="slit"),
         _circle(0, -_NIB_SLIT, 1.65, "ink", top=True, transform=_TOOL_TRANSFORM, name="vent"),
     ]
 
@@ -447,14 +447,14 @@ _KNIFE_SPINE = -2.54         # the blunt upper edge; the handle is flush with it
 _KNIFE_HANDLE_WIDTH = 5.47
 
 
-def knife() -> list[Shape]:
+def _knife() -> list[_Shape]:
     seam, side_a = _KNIFE_SEAM, _KNIFE_SPINE - SW
     side_b, end_radius = side_a + _KNIFE_HANDLE_WIDTH, _KNIFE_HANDLE_WIDTH / 2
     blade = _path("M0 0", f"Q-3.17 -5.34 {_KNIFE_SPINE} {seam}", f"L4.31 {seam}", "L3.68 -7.94", "C3.39 -3.48 0 0 0 0", "Z")
-    handle = rounded_polygon([(side_a, seam), (side_b, seam), (side_b, -_TOOL_LENGTH), (side_a, -_TOOL_LENGTH)],
+    handle = _rounded_polygon([(side_a, seam), (side_b, seam), (side_b, -_TOOL_LENGTH), (side_a, -_TOOL_LENGTH)],
                              [0, 0, end_radius, end_radius])
-    return [path_shape(blade, "paper", transform=_TOOL_TRANSFORM, name="blade"),
-            path_shape(handle, "ink", transform=_TOOL_TRANSFORM, name="handle")]
+    return [_path_shape(blade, "paper", transform=_TOOL_TRANSFORM, name="blade"),
+            _path_shape(handle, "ink", transform=_TOOL_TRANSFORM, name="handle")]
 
 
 # Magnet: horseshoe and poles sit above the hotspot, matching the other rotated tool cursors.
@@ -469,47 +469,47 @@ _MAGNET_DOT_RADIUS = 2
 _MAGNET_TRANSFORM = (*_MAGNET_ORIGIN, _TOOL_TIP_ANGLE)
 
 
-def magnet() -> list[Shape]:
+def _magnet() -> list[_Shape]:
     outer, inner, bend = _MAGNET_OUTER, _MAGNET_OUTER - _MAGNET_ARM, _MAGNET_BEND_Y
     pole_top = _MAGNET_POLE_Y - _MAGNET_POLE_LENGTH
     body_end = pole_top - _MAGNET_POLE_GAP
     body = _path(f"M{-outer} {body_end} V{bend} A{outer} {outer} 0 0 1 {outer} {bend} V{body_end}",
                  f"H{inner} V{bend} A{inner} {inner} 0 0 0 {-inner} {bend} V{body_end} Z")
-    poles = [rectangle(left, pole_top, left + _MAGNET_ARM, _MAGNET_POLE_Y) for left in (-outer, inner)]
+    poles = [_rectangle(left, pole_top, left + _MAGNET_ARM, _MAGNET_POLE_Y) for left in (-outer, inner)]
     return [
-        path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True, name="magnet"),
+        _path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True, name="magnet"),
         _dot(*_MAGNET_ORIGIN, _MAGNET_DOT_RADIUS, name="pivot"),
     ]
 
 
-def crosshair() -> list[Shape]:
+def _crosshair() -> list[_Shape]:
     """Precision crosshair with four separate arms and an open center; the arm ends touch the allowed region."""
-    center, gap, near, far = _CANVAS_CENTER, 5, LINE_INSET, LINE_FAR_EDGE
+    center, gap, near, far = _CANVAS_CENTER, 5, _LINE_INSET, _LINE_FAR_EDGE
     left_arm = f"M{near} {center} H{center - gap}"
     right_arm = f"M{center + gap} {center} H{far}"
     top_arm = f"M{center} {near} V{center - gap}"
     bottom_arm = f"M{center} {center + gap} V{far}"
     return [
-        path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", sharp=True, name="arms"),
+        _path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", sharp=True, name="arms"),
         _dot(center, center, _CENTER_DOT_RADIUS),
     ]
 
 
-def artboard() -> list[Shape]:
+def _artboard() -> list[_Shape]:
     """Artboard cursor with the stepped lower-right frame; the line ends touch the allowed region."""
-    near, far = LINE_INSET, LINE_FAR_EDGE
+    near, far = _LINE_INSET, _LINE_FAR_EDGE
     outline = f"M{near} 16 H11 M21 16 H{far} V{far} M16 {near} V11 M16 21 V{far} H{far}"
     return [
-        path_shape(outline, "line", sharp=True, name="frame"),
+        _path_shape(outline, "line", sharp=True, name="frame"),
         _dot(_CANVAS_CENTER, _CANVAS_CENTER, _CENTER_DOT_RADIUS),
     ]
 
 
 _CROP_RING_RADIUS = 6
-_CROP_ARM_OUTER_RADIUS = _CANVAS_CENTER - LINE_INSET   # the arm ends touch the allowed region
+_CROP_ARM_OUTER_RADIUS = _CANVAS_CENTER - _LINE_INSET   # the arm ends touch the allowed region
 
 
-def crop() -> list[Shape]:
+def _crop() -> list[_Shape]:
     """Crop tool target with arms meeting the circular ring."""
     center = _CANVAS_CENTER
     inner, outer = _CROP_RING_RADIUS, _CROP_ARM_OUTER_RADIUS
@@ -520,7 +520,7 @@ def crop() -> list[Shape]:
         f"M{center - outer} {center} H{center - inner}",
     )
     return [
-        path_shape(arms, "line", sharp=True, name="arms"),
+        _path_shape(arms, "line", sharp=True, name="arms"),
         _circle(center, center, _CROP_RING_RADIUS, "paper", name="ring"),
         _dot(center, center, _CENTER_DOT_RADIUS),
     ]
@@ -529,19 +529,19 @@ def crop() -> list[Shape]:
 # Crop frame: corner brackets in the allowed region; the top left corner is closed into a solid triangle
 # (arrow-like) and is the hotspot.
 _CROP_FRAME_ARM = 7
-_CROP_FRAME_HOTSPOT = (LINE_INSET, LINE_INSET)
+_CROP_FRAME_HOTSPOT = (_LINE_INSET, _LINE_INSET)
 
 
-def crop_frame() -> list[Shape]:
+def _crop_frame() -> list[_Shape]:
     """Crop tool: arrow corner at the top left plus three corner brackets of the frame."""
-    near, far, arm = LINE_INSET, LINE_FAR_EDGE, _CROP_FRAME_ARM
+    near, far, arm = _LINE_INSET, _LINE_FAR_EDGE, _CROP_FRAME_ARM
     triangle = _path(f"M{near} {near}", f"H{near + arm}", f"L{near} {near + arm}", "Z")
     top_right = f"M{far - arm} {near} H{far} V{near + arm}"
     bottom_right = f"M{far} {far - arm} V{far} H{far - arm}"
     bottom_left = f"M{near + arm} {far} H{near} V{far - arm}"
     return [
-        path_shape(triangle, "solid", name="corner"),
-        path_shape(_path(top_right, bottom_right, bottom_left), "line", sharp=True, name="brackets"),
+        _path_shape(triangle, "solid", name="corner"),
+        _path_shape(_path(top_right, bottom_right, bottom_left), "line", sharp=True, name="brackets"),
     ]
 
 
@@ -556,7 +556,7 @@ _NOTE_BRACKET_INSET = 4    # bracket corner, also the hotspot
 _NOTE_BRACKET_END = 27
 
 
-def note() -> list[Shape]:
+def _note() -> list[_Shape]:
     left, top, right, bottom = _NOTE_SHEET
     near, end, fold = _NOTE_BRACKET_INSET, _NOTE_BRACKET_END, _NOTE_FOLD
     bracket = f"M{end} {near} H{near} V{end}"
@@ -568,15 +568,15 @@ def note() -> list[Shape]:
     text = _path(f"M{text_start} {text_rows[0]} H{text_end}", f"M{text_start} {text_rows[1]} H{text_end}",
                  f"M{text_start} {text_rows[2]} H{short_end}")
     return [
-        path_shape(bracket, "line", sharp=True, name="bracket"),
-        path_shape(sheet, "paper", sharp=True, name="sheet"),
-        path_shape(_path(flap, text), "line", top=True, sharp=True, name="fold_and_text"),
+        _path_shape(bracket, "line", sharp=True, name="bracket"),
+        _path_shape(sheet, "paper", sharp=True, name="sheet"),
+        _path_shape(_path(flap, text), "line", top=True, sharp=True, name="fold_and_text"),
     ]
 
 
 # Direction cursors: solid arrowheads at the allowed region edge, joined by shafts through the canvas center.
 # A head's length equals its half width, so both head edges run exactly along the pixel diagonal.
-_ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
+_ARROW_REACH = _CANVAS_CENTER - _LINE_INSET   # center to arrow tip
 _ARROW_HEAD_SIZE = 4
 _MOVE_BADGE_REACH = 8        # neighbouring head corners stay (reach - 2 * head size) * sqrt(2) apart
 _MOVE_BADGE_HEAD_SIZE = 3
@@ -593,7 +593,7 @@ def _arrow_head(direction_x: int, direction_y: int, center: int, reach: int, hea
 
 
 def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head_size: int,
-                 flat: bool = False) -> list[Shape]:
+                 flat: bool = False) -> list[_Shape]:
     """Double arrows along the chosen axes around `center`. Builds both the direction cursors and the move badge.
     flat: unoutlined heads and a round-capped shaft, so the shaft halo stays inside the heads' halos."""
     shaft_reach = reach - head_size
@@ -603,11 +603,11 @@ def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head
               for axis_x, axis_y in axes]
     heads = [_arrow_head(sign * axis_x, sign * axis_y, center, reach, head_size)
              for axis_x, axis_y in axes for sign in (-1, 1)]
-    return [path_shape(_path(*shafts), "line", sharp=not flat, name="shaft"),
-            path_shape(_path(*heads), "ink" if flat else "solid", name="heads")]
+    return [_path_shape(_path(*shafts), "line", sharp=not flat, name="shaft"),
+            _path_shape(_path(*heads), "ink" if flat else "solid", name="heads")]
 
 
-def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
+def _arrows(horizontal: bool, vertical: bool) -> list[_Shape]:
     """Double arrows along the chosen axes: resize for one axis, move for both."""
     return _arrow_cross(horizontal, vertical, _CANVAS_CENTER, _ARROW_REACH, _ARROW_HEAD_SIZE)
 
@@ -619,7 +619,7 @@ _SCISSORS_RING_OFFSET = (0, -3)   # ring center from the blade end: 2.85 from th
 _SCISSORS_RING_RADIUS = 2         # hole radius, the outline grows outward
 
 
-def _scissors(inset: int, length: int, ring_offset: tuple[int, int], ring_radius: int) -> list[Shape]:
+def _scissors_shapes(inset: int, length: int, ring_offset: tuple[int, int], ring_radius: int) -> list[_Shape]:
     """The first blade starts at (inset, inset + length); the second blade and ring mirror it across the diagonal,
     where the blades cross."""
     tip = (inset, inset + length)
@@ -627,17 +627,17 @@ def _scissors(inset: int, length: int, ring_offset: tuple[int, int], ring_radius
     ring = (end[0] + ring_offset[0], end[1] + ring_offset[1])
     blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
     return [
-        path_shape(blades, "line", name="blades"),
+        _path_shape(blades, "line", name="blades"),
         _circle(*ring, ring_radius, "paper", name="ring_1"),
         _circle(*ring[::-1], ring_radius, "paper", name="ring_2"),
     ]
 
 
-_SCISSORS_HOTSPOT = (LINE_INSET + _SCISSORS_LENGTH // 2,) * 2   # between the blade tips
+_SCISSORS_HOTSPOT = (_LINE_INSET + _SCISSORS_LENGTH // 2,) * 2   # between the blade tips
 
 
-def scissors() -> list[Shape]:
-    return _scissors(LINE_INSET, _SCISSORS_LENGTH, _SCISSORS_RING_OFFSET, _SCISSORS_RING_RADIUS)
+def _scissors() -> list[_Shape]:
+    return _scissors_shapes(_LINE_INSET, _SCISSORS_LENGTH, _SCISSORS_RING_OFFSET, _SCISSORS_RING_RADIUS)
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
@@ -650,15 +650,15 @@ _WAND_LENGTH = 24
 _WAND_STAR_STICK_GAP = 0
 
 
-def magic_wand() -> list[Shape]:
+def _magic_wand() -> list[_Shape]:
     """Magic wand: star on a tapered stick."""
     tip_half, handle_half = _WAND_TIP_WIDTH / 2, _WAND_HANDLE_WIDTH / 2
     star_notch = pixel(_WAND_STAR_RADIUS * _STAR_INNER_RATIO)
     stick_start = star_notch + 2 * SW + _WAND_STAR_STICK_GAP - tip_half
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
-    stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    return [path_shape(_path(star(_WAND_STAR_RADIUS), stick), "ink", transform=(*_WAND_CENTER, -_WAND_TILT), name="wand")]
+    stick = _rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
+    return [_path_shape(_path(_star(_WAND_STAR_RADIUS), stick), "ink", transform=(*_WAND_CENTER, -_WAND_TILT), name="wand")]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
@@ -676,11 +676,11 @@ _DROP_RADIUS = 2.6
 _DROP_HEIGHT = 6.8           # from the pointed top to the lowest point
 
 
-def fill() -> list[Shape]:
+def _fill() -> list[_Shape]:
     """Paint bucket tilted to pour, with a drop under the rim."""
     transform = (*_BUCKET_CENTER, -_BUCKET_TILT)
     rim, base = -_BUCKET_HALF_HEIGHT, _BUCKET_HALF_HEIGHT
-    body = rounded_polygon([(-_BUCKET_RIM_HALF, rim), (_BUCKET_RIM_HALF, rim),
+    body = _rounded_polygon([(-_BUCKET_RIM_HALF, rim), (_BUCKET_RIM_HALF, rim),
                             (_BUCKET_BASE_HALF, base), (-_BUCKET_BASE_HALF, base)],
                            [_BUCKET_RIM_ROUNDING, _BUCKET_RIM_ROUNDING, _BUCKET_BASE_ROUNDING, _BUCKET_BASE_ROUNDING])
     handle_top = rim - _BUCKET_HANDLE_RISE
@@ -697,97 +697,97 @@ def fill() -> list[Shape]:
                  f"{number(drop_x + _DROP_RADIUS * 0.5)} {number(drop_top + 2.2)} {drop_x} {number(drop_top)}",
                  "Z")
     return [
-        path_shape(handle, "line", transform=transform, name="bucket_handle"),
-        path_shape(body, "paper", transform=transform, name="bucket"),
-        path_shape(drop, "ink", name="drop"),
+        _path_shape(handle, "line", transform=transform, name="bucket_handle"),
+        _path_shape(body, "paper", transform=transform, name="bucket"),
+        _path_shape(drop, "ink", name="drop"),
     ]
 
 
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
 # Every glyph is drawn once around its own origin (0, 0) on whole units. A small glyph (no farther than
-# _BADGE_HALF_SIZE from it) sits on BADGE_ORIGIN in the bottom right corner of the allowed region; _BADGE_SHIFT
+# _BADGE_HALF_SIZE from it) sits on _BADGE_ORIGIN in the bottom right corner of the allowed region; _BADGE_SHIFT
 # moves the badges of a base right and down from there: clear of the base, or room for a bulky glyph.
 # The canvas of the cursor follows from where its badge ends (the hotspot stays where it was, the origin is the
 # top left corner), so a canvas is never set by hand.
 #   "shared" - universal marks (+, -), usable on any cursor;
 #   "<base>" - marks of one tool, so a bulky mark never constrains the others.
-# add_badged() looks in the base's group first, then in "shared".
+# _add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
-BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
+_BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
-_BADGE_SHIFT = {"arrow": 3, "pen": 2}   # base -> units its badges move right and down from BADGE_ORIGIN
-BADGES: dict[str, dict[str, list[Shape]]] = {
+_BADGE_SHIFT = {"arrow": 3, "pen": 2}   # base -> units its badges move right and down from _BADGE_ORIGIN
+_BADGES: dict[str, dict[str, list[_Shape]]] = {
     "shared": {
-        "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
-        "minus": [path_shape("M-3 0 H3", "line", sharp=True, name="minus")],
+        "plus": [_path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
+        "minus": [_path_shape("M-3 0 H3", "line", sharp=True, name="minus")],
         "ring": [_circle(0, 0, 3, "line", name="ring")],
     },
     "arrow": {
-        "scissors": _scissors(_SCISSORS_BADGE_INSET, _SCISSORS_BADGE_LENGTH, (0, -2), 1),
+        "scissors": _scissors_shapes(_SCISSORS_BADGE_INSET, _SCISSORS_BADGE_LENGTH, (0, -2), 1),
         "move": _arrow_cross(True, True, 0, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE, flat=True),
     },
     "pen": {
-        "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line", name="wave")],
-        "curve": [path_shape("M-5 3 C-1 3 -1 -3 3 -3", "line", name="curve")],
-        "caret": [path_shape("M-3 3 L0 -1 L3 3", "line", name="caret")],
+        "wave": [_path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line", name="wave")],
+        "curve": [_path_shape("M-5 3 C-1 3 -1 -3 3 -3", "line", name="curve")],
+        "caret": [_path_shape("M-3 3 L0 -1 L3 3", "line", name="caret")],
     },
 }
 
 # name -> (hotspot on the 32x32 grid, shape factory)
-CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
+CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     # arrow
-    "arrow": (_ARROW_HOTSPOT, arrow),
-    "arrow_path_selection": (_ARROW_HOTSPOT, arrow_path_selection),
-    "arrow_direct_selection": (_ARROW_HOTSPOT, arrow_direct_selection),
-    "arrow_corner": (_ARROW_HOTSPOT, arrow_corner),
+    "arrow": (_ARROW_HOTSPOT, _arrow),
+    "arrow_path_selection": (_ARROW_HOTSPOT, _arrow_path_selection),
+    "arrow_direct_selection": (_ARROW_HOTSPOT, _arrow_direct_selection),
+    "arrow_corner": (_ARROW_HOTSPOT, _arrow_corner),
     # type
-    "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), text_cursor),
-    "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: text_cursor(vertical=True)),
-    "type_area_horizontal": (_AREA_HOTSPOT, lambda: text_cursor(area=True)),
-    "type_area_vertical": (_turn_point(*_AREA_HOTSPOT), lambda: text_cursor(vertical=True, area=True)),
+    "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), _text_cursor),
+    "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _text_cursor(vertical=True)),
+    "type_area_horizontal": (_AREA_HOTSPOT, lambda: _text_cursor(area=True)),
+    "type_area_vertical": (_turn_point(*_AREA_HOTSPOT), lambda: _text_cursor(vertical=True, area=True)),
     # zoom
-    "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
-    "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
+    "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: _zoom("+")),
+    "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: _zoom("-")),
     # hand
     "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grab")),
     "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grabbing")),
     "pointer": (_POINTER_HOTSPOT, lambda: _hand("pointer")),
     # pen
-    "pen": (_TOOL_TIP, pen_nib),
+    "pen": (_TOOL_TIP, _pen_nib),
     # eyedropper
-    "eyedropper": (_TOOL_TIP, eyedropper),
+    "eyedropper": (_TOOL_TIP, _eyedropper),
     # crop
-    "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
-    "crop_frame": (_CROP_FRAME_HOTSPOT, crop_frame),
+    "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), _crop),
+    "crop_frame": (_CROP_FRAME_HOTSPOT, _crop_frame),
     # direction
-    "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=True)),
-    "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=False)),
-    "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=False, vertical=True)),
+    "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=True, vertical=True)),
+    "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=True, vertical=False)),
+    "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=False, vertical=True)),
     # selection tools
-    "scissors": (_SCISSORS_HOTSPOT, scissors),
-    "magic_wand": (_WAND_CENTER, magic_wand),
-    "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
-    "knife": (_TOOL_TIP, knife),
+    "scissors": (_SCISSORS_HOTSPOT, _scissors),
+    "magic_wand": (_WAND_CENTER, _magic_wand),
+    "magnetic_lasso": (_MAGNET_ORIGIN, _magnet),
+    "knife": (_TOOL_TIP, _knife),
     # other
-    "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
-    "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
-    "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), note),
-    "fill": (_DROP_HOTSPOT, fill),
+    "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), _crosshair),
+    "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), _artboard),
+    "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), _note),
+    "fill": (_DROP_HOTSPOT, _fill),
 }
 
-CANVAS: dict[str, tuple[float, float]] = {}
+_CANVAS: dict[str, tuple[float, float]] = {}
 
 def canvas_size(name: str) -> tuple[float, float]:
-    return CANVAS.get(name, (GRID, GRID))
+    return _CANVAS.get(name, (GRID, GRID))
 
 
 # How far the halo of each shape kind sticks out past its path.
-_KIND_REACH = {"paper": PAPER_REACH, "line": LINE_REACH, "fill": LINE_REACH, "solid": LINE_REACH,
+_KIND_REACH = {"paper": _PAPER_REACH, "line": _LINE_REACH, "fill": _LINE_REACH, "solid": _LINE_REACH,
                "ink": H, "inverse": H, "dot": H}
 
 
-def _extent(shape: Shape) -> tuple[float, float]:
+def _extent(shape: _Shape) -> tuple[float, float]:
     """Farthest right and down the shape's halo reaches from its origin."""
     reach = _KIND_REACH[shape.kind]
     if shape.circle is not None:
@@ -797,20 +797,20 @@ def _extent(shape: Shape) -> tuple[float, float]:
     return far_x + reach, far_y + reach
 
 
-def add_badged(name: str, base: str, badge: str) -> None:
+def _add_badged(name: str, base: str, badge: str) -> None:
     """Registers cursor `name` = base cursor + badge. The hotspot is taken from the base; the square canvas grows
     past the base's if the shifted badge, with its halo and PADDING, does not fit."""
     hot, base_factory = CURSORS[base]
-    shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
-    origin = BADGE_ORIGIN + _BADGE_SHIFT.get(base, 0)
+    shapes = _BADGES.get(base, {}).get(badge) or _BADGES["shared"][badge]
+    origin = _BADGE_ORIGIN + _BADGE_SHIFT.get(base, 0)
     placed = [replace(shape, transform=(origin, origin, 0), name=f"badge_{shape.name}", group="badge")
               for shape in shapes]
     CURSORS[name] = (hot, lambda: [replace(shape, group=base) for shape in base_factory()] + placed)
     side = max(*canvas_size(base), *(math.ceil(origin + max(_extent(shape)) + PADDING) for shape in shapes))
-    CANVAS[name] = (side, side)
+    _CANVAS[name] = (side, side)
 
 
-for name, (base, badge) in {
+for _name, (_base, _badge) in {
     "pen_freeform": ("pen", "wave"),
     "pen_curvature": ("pen", "curve"),
     "pen_add": ("pen", "plus"),
@@ -821,9 +821,9 @@ for name, (base, badge) in {
     "arrow_direct_selection_add": ("arrow_direct_selection", "plus"),
     "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
 }.items():
-    add_badged(name, base, badge)
-add_badged("arrow_scissors", "arrow", "scissors")
-add_badged("arrow_move", "arrow", "move")
+    _add_badged(_name, _base, _badge)
+_add_badged("arrow_scissors", "arrow", "scissors")
+_add_badged("arrow_move", "arrow", "move")
 
 
 def image_side(name: str, size: int) -> int:
@@ -841,4 +841,4 @@ def build_svg(name: str, size: int, theme: str) -> str:
     fit = Fit.for_style(scale, SW, H)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
             f'viewBox="0 0 {width} {height}" shape-rendering="geometricPrecision">\n'
-            f'<!-- hotspot: {number(hot[0])},{number(hot[1])} -->\n{render(factory(), fit, theme=theme, cursor=name)}\n</svg>\n')
+            f'<!-- hotspot: {number(hot[0])},{number(hot[1])} -->\n{_render(factory(), fit, theme=theme, cursor=name)}\n</svg>\n')

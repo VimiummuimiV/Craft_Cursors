@@ -20,9 +20,9 @@ from cursors import (
     CURSORS,
 )
 
-LARGE_PANEL_PADDING = 10
+_LARGE_PANEL_PADDING = 10
 
-PREVIEW_STYLES = """<style>
+_PREVIEW_STYLES = """<style>
     body {
         font: 14px 'Segoe UI', Arial, sans-serif;
         margin: 0;
@@ -225,7 +225,7 @@ PREVIEW_STYLES = """<style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 """
 
-PREVIEW_TOOLBAR = """
+_PREVIEW_TOOLBAR = """
 <div class="toolbar">
   <label><input type="checkbox" id="tog-large" checked> Large</label>
   <label><input type="checkbox" id="tog-compact" checked> Actual 1:1</label>
@@ -366,8 +366,8 @@ def _card(name: str, render_png: Callable[[str, int, str], bytes]) -> str:
     canvas_width, canvas_height = canvas_size(name)
     stage_width, stage_height = canvas_width * LARGE_PIXELS_PER_UNIT, canvas_height * LARGE_PIXELS_PER_UNIT
     large_hotspot = _hotspot_markup(hotspot_x, hotspot_y, canvas_width, canvas_height)
-    panel_style = (f' style="width:{stage_width + 2 * LARGE_PANEL_PADDING:g}px;'
-                   f'height:{stage_height + 2 * LARGE_PANEL_PADDING:g}px"')
+    panel_style = (f' style="width:{stage_width + 2 * _LARGE_PANEL_PADDING:g}px;'
+                   f'height:{stage_height + 2 * _LARGE_PANEL_PADDING:g}px"')
     large_stage = f'style="width:{stage_width:g}px;height:{stage_height:g}px"'
     large_blocks = [
         _theme_block(theme, build_svg(name, LARGE_PIXELS_PER_UNIT * GRID, theme=theme),
@@ -404,9 +404,9 @@ def preview_html(render_png: Callable[[str, int, str], bytes], names: list[str])
     """render_png(name, size, theme) returns the PNG bytes of one cursor at a fitted size."""
     cards = "".join(_card(name, render_png) for name in names)
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
-            + PREVIEW_STYLES
+            + _PREVIEW_STYLES
             + f'<div id="grid" class="grid">{cards}</div>'
-            + PREVIEW_TOOLBAR)
+            + _PREVIEW_TOOLBAR)
 
 
 def contact_sheet(

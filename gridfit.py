@@ -69,7 +69,7 @@ class Fit:
         """Stroke rounds half up and halo half down, so a .5 split never thickens both."""
         return cls(scale, max(1, pixel(stroke * scale)), max(1, math.ceil(halo * scale - _HALF_PIXEL)))
 
-    def snap(self, value: float, on_center: bool) -> float:
+    def _snap(self, value: float, on_center: bool) -> float:
         """Grid units -> pixels, on a pixel edge or (on_center) on a pixel center."""
         pixels = value * self.scale
         return math.floor(pixels) + _HALF_PIXEL if on_center else pixel(pixels)
@@ -82,7 +82,7 @@ class Fit:
         if not snap:
             return center_x * self.scale, center_y * self.scale, radius_pixels
         odd_diameter = pixel(2 * (radius_pixels + outline_reach)) % 2 == 1
-        return (self.snap(center_x + origin[0], odd_diameter), self.snap(center_y + origin[1], odd_diameter),
+        return (self._snap(center_x + origin[0], odd_diameter), self._snap(center_y + origin[1], odd_diameter),
                 radius_pixels)
 
     def path(self, data: str, on_center: bool = False, origin: tuple[float, float] = (0.0, 0.0),
@@ -101,7 +101,7 @@ class Fit:
             unsnapped = raw(x, y)
             if not snap:
                 return unsnapped, (0.0, 0.0)
-            placed = (self.snap(x + origin[0], on_center), self.snap(y + origin[1], on_center))
+            placed = (self._snap(x + origin[0], on_center), self._snap(y + origin[1], on_center))
             return placed, (placed[0] - unsnapped[0], placed[1] - unsnapped[1])
 
         def control(x: float, y: float, moved_by: tuple[float, float]) -> str:
