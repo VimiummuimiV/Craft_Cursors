@@ -590,23 +590,18 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
 
 
-# Scissors: two blades cross at their midpoints along 3:1 and 1:3 (whole lattice steps); each ends tangent to a ring.
+# Scissors: two blades along 3:1 and 1:3 (whole lattice steps) cross at their midpoints; each ends tangent to a ring.
 _BLADE_RUN = 3                    # units along one axis per unit along the other
-_SCISSORS_PIVOT = 13
-_SCISSORS_HALF_STEPS = 3          # half a blade in lattice steps
-_SCISSORS_RING_OFFSET = (1, -4)   # ring center from the blade end: 4.1 from the blade line, the ring's centerline radius is 4
-_SCISSORS_RING_RADIUS = 3         # hole radius, the outline grows outward
+_SCISSORS_LENGTH = 7              # blade length in lattice steps
+_SCISSORS_RING_OFFSET = (0, -3)   # ring center from the blade end: 2.85 from the blade line, the ring's centerline radius is 3
+_SCISSORS_RING_RADIUS = 2         # hole radius, the outline grows outward
 
 
-def _blade(pivot: int, half_steps: int) -> tuple[tuple[int, int], tuple[int, int]]:
-    """Tip and end of the blade that passes through the pivot at its midpoint."""
-    reach = _BLADE_RUN * half_steps
-    return (pivot - reach, pivot - half_steps), (pivot + reach, pivot + half_steps)
-
-
-def _scissors(pivot: int, half_steps: int, ring_offset: tuple[int, int], ring_radius: int) -> list[Shape]:
-    """The second blade and ring mirror the first across the diagonal through the pivot."""
-    tip, end = _blade(pivot, half_steps)
+def _scissors(inset: int, length: int, ring_offset: tuple[int, int], ring_radius: int) -> list[Shape]:
+    """The first blade starts at (inset, inset + length); the second blade and ring mirror it across the diagonal,
+    where the blades cross."""
+    tip = (inset, inset + length)
+    end = (inset + _BLADE_RUN * length, inset + 2 * length)
     ring = (end[0] + ring_offset[0], end[1] + ring_offset[1])
     blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
     return [
@@ -616,11 +611,11 @@ def _scissors(pivot: int, half_steps: int, ring_offset: tuple[int, int], ring_ra
     ]
 
 
-_SCISSORS_HOTSPOT = (sum(_blade(_SCISSORS_PIVOT, _SCISSORS_HALF_STEPS)[0]) // 2,) * 2   # between the blade tips
+_SCISSORS_HOTSPOT = (LINE_INSET + _SCISSORS_LENGTH // 2,) * 2   # between the blade tips
 
 
 def scissors() -> list[Shape]:
-    return _scissors(_SCISSORS_PIVOT, _SCISSORS_HALF_STEPS, _SCISSORS_RING_OFFSET, _SCISSORS_RING_RADIUS)
+    return _scissors(LINE_INSET, _SCISSORS_LENGTH, _SCISSORS_RING_OFFSET, _SCISSORS_RING_RADIUS)
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
@@ -696,8 +691,8 @@ def fill() -> list[Shape]:
 # add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
-_SCISSORS_BADGE_PIVOT = 1   # the blades cross below and right of the arrow tip
-_SCISSORS_BADGE_CANVAS = (38, 38)   # ring outline, halo and padding past the badge origin
+_SCISSORS_BADGE_INSET = -3   # blade tip, relative to BADGE_ORIGIN: the scissors stay clear of the arrow tip
+_SCISSORS_BADGE_CANVAS = (40, 40)   # ring outline, halo and padding past the badge origin
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
         "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True)],
@@ -705,7 +700,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
         "ring": [_circle(0, 0, 3, "line")],
     },
     "arrow": {
-        "scissors": _scissors(_SCISSORS_BADGE_PIVOT, 2, (0, -2), 1),
+        "scissors": _scissors(_SCISSORS_BADGE_INSET, 4, (0, -2), 1),
     },
     "pen": {
         "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line")],
