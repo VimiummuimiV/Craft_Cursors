@@ -2,11 +2,12 @@
 Generator for a unified cursor set.
 
 Usage:   python main.py [output_folder]
-Result: svg/, png/{dark,light}/<size>/, cur/{dark,light}/<size>/ and cur/{dark,light}/multi/, preview.html, sheet_*.png, cursors.json.
+Settings (themes per format, sizes, cursors to build, output folder, style, preview) live in config.py.
+Result: svg/<theme>/, png/<theme>/<size>/, cur/<theme>/<size>/ and cur/<theme>/multi/, preview.html, sheet_*.png, cursors.json.
 Stale SVG, PNG, CUR and contact-sheet exports are removed from those generated output folders.
 
-Cursor geometry and shared style settings live in cursors.py. Each cursor is described on a
-32x32 grid, so changing shared thickness/colors rebuilds the entire set. Every cursor, halo
+Cursor geometry lives in cursors.py. Each cursor is described on a
+32x32 grid, so changing shared thickness/colors in config.py rebuilds the entire set. Every cursor, halo
 included, must stay inside the allowed region (PADDING from each canvas edge); the build stops
 and lists the cursors that cross it. Every .cur size is grid-fitted separately (see gridfit.py),
 so lines and edges stay sharp at 100-300% display scaling, not only at the base size.
@@ -21,16 +22,27 @@ import struct
 import sys
 from pathlib import Path
 
+from config import (
+    CUR_MULTI_SIZE_FILE,
+    CUR_SINGLE_SIZE_FILES,
+    CUR_SIZES,
+    CUR_THEMES,
+    EXPORT_CURSORS,
+    EXPORT_PREVIEW,
+    GRID,
+    OUTPUT_FOLDER,
+    PADDING,
+    PNG_THEMES,
+    SHEET_SIZES,
+    SVG_SIZE,
+    SVG_THEMES,
+    THEMES,
+)
 from cursors import (
     build_svg,
     canvas_size,
-    ACTUAL_SIZE,
+    image_side,
     CURSORS,
-    CUR_SIZES,
-    GRID,
-    PADDING,
-    THEME,
-    THEMES,
 )
 from gridfit import pixel
 from preview import (
@@ -40,6 +52,7 @@ from preview import (
 
 MULTI_SIZE_FOLDER = "multi"   # one .cur per cursor with every size inside, for installing in Windows
 PADDING_CHECK_PIXELS_PER_UNIT = 10
+PADDING_CHECK_THEME = next(iter(THEMES))   # the shape, not the colors, decides the margins
 PADDING_TOLERANCE = 0.1   # one check pixel: antialiasing may spill into the neighbouring pixel
 SIDES = ("left", "top", "right", "bottom")
 
@@ -62,12 +75,7 @@ def hotspot(name: str, size: int) -> tuple[int, int]:
     return pixel(hotspot_x * size / GRID), pixel(hotspot_y * size / GRID)
 
 
-def image_side(name: str, size: int) -> int:
-    """Side of the square image: size pixels per GRID units, the larger canvas side decides."""
-    return round(max(canvas_size(name)) * size / GRID)
-
-
-def render_image(name: str, size: int, theme: str | None = None):
+def render_image(name: str, size: int, theme: str):
     """Returns a square QImage; the cursor sits in its top left corner at size pixels per GRID units
     (a bigger canvas stays transparent below/right, so the hotspot position is the same).
     The SVG is already fitted to size and written in pixels, so it maps 1:1 onto the image."""
@@ -96,6 +104,12 @@ def png_bytes(image) -> bytes:
     return bytes(data)
 
 
+def target(path: Path) -> Path:
+    """Creates the parent folder so the file can be written."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def write_cur(path: Path, entries: list[tuple[int, int, int, bytes]]) -> None:
     """entries: (size, hotspot_x, hotspot_y, png_bytes). PNG inside .cur - Vista+."""
     header = struct.pack("<HHH", 0, 2, len(entries))
@@ -106,7 +120,7 @@ def write_cur(path: Path, entries: list[tuple[int, int, int, bytes]]) -> None:
         directory += struct.pack("<BBBBHHII", dimension, dimension, 0, 0,
                                  hotspot_x, hotspot_y, len(png), offset + len(blobs))
         blobs += png
-    path.write_bytes(header + directory + blobs)
+    target(path).write_bytes(header + directory + blobs)
 
 
 def qcursor(name: str, size: int = 32):
@@ -122,7 +136,7 @@ def padding(name: str) -> tuple[float, float, float, float]:
     """Empty margin (left, top, right, bottom) in grid units between the drawn cursor, halo
     included, and the edges of its canvas. A cursor that touches an edge measures 0."""
     size = PADDING_CHECK_PIXELS_PER_UNIT * GRID
-    image = render_image(name, size, theme=THEME)
+    image = render_image(name, size, theme=PADDING_CHECK_THEME)
     pointer = image.constBits()
     pointer.setsize(image.sizeInBytes())
     alpha = bytes(pointer)[3::4]   # ARGB32 is stored as B, G, R, A bytes
@@ -137,10 +151,10 @@ def padding(name: str) -> tuple[float, float, float, float]:
     return left / unit, top / unit, canvas_width - right / unit, canvas_height - bottom / unit
 
 
-def check_padding() -> None:
+def check_padding(names: list[str]) -> None:
     """Stops the build when any cursor crosses the allowed region."""
     problems = []
-    for name in CURSORS:
+    for name in names:
         for side, margin in zip(SIDES, padding(name)):
             if round(margin, 2) < PADDING - PADDING_TOLERANCE:
                 problems.append(f"  {name}: {side} margin {margin:.2f} < {PADDING:g}")
@@ -154,30 +168,37 @@ def preview_png(name: str, size: int, theme: str) -> bytes:
     return png_bytes(render_image(name, size, theme=theme))
 
 
-def export_cursor(out: Path, name: str, theme: str) -> None:
-    entries = []
-    for size in CUR_SIZES:
-        png = preview_png(name, size, theme)
-        hotspot_x, hotspot_y = hotspot(name, size)
-        entry = (image_side(name, size), hotspot_x, hotspot_y, png)
-        (out / "png" / theme / str(size) / f"{name}.png").write_bytes(png)
-        write_cur(out / "cur" / theme / str(size) / f"{name}.cur", [entry])
-        entries.append(entry)
-    write_cur(out / "cur" / theme / MULTI_SIZE_FOLDER / f"{name}.cur", entries)
+def export_cursor(out: Path, name: str) -> None:
+    for theme in dict.fromkeys((*PNG_THEMES, *CUR_THEMES)):
+        entries = []
+        for size in CUR_SIZES:
+            png = preview_png(name, size, theme)
+            hotspot_x, hotspot_y = hotspot(name, size)
+            entry = (image_side(name, size), hotspot_x, hotspot_y, png)
+            entries.append(entry)
+            if theme in PNG_THEMES:
+                target(out / "png" / theme / str(size) / f"{name}.png").write_bytes(png)
+            if theme in CUR_THEMES and CUR_SINGLE_SIZE_FILES:
+                write_cur(out / "cur" / theme / str(size) / f"{name}.cur", [entry])
+        if theme in CUR_THEMES and CUR_MULTI_SIZE_FILE:
+            write_cur(out / "cur" / theme / MULTI_SIZE_FOLDER / f"{name}.cur", entries)
 
 
 def prune_stale_exports(out: Path) -> None:
-    expected_svg = {Path(f"{name}.svg") for name in CURSORS}
+    expected_svg = {Path(theme) / f"{name}.svg" for theme in SVG_THEMES for name in CURSORS}
     expected_png = {
         Path(theme) / str(size) / f"{name}.png"
-        for theme in THEMES
+        for theme in PNG_THEMES
         for size in CUR_SIZES
         for name in CURSORS
     }
+    cur_folders = [str(size) for size in CUR_SIZES if CUR_SINGLE_SIZE_FILES]
+    if CUR_MULTI_SIZE_FILE:
+        cur_folders.append(MULTI_SIZE_FOLDER)
     expected_cur = {
         Path(theme) / folder / f"{name}.cur"
-        for theme in THEMES
-        for folder in (*map(str, CUR_SIZES), MULTI_SIZE_FOLDER)
+        for theme in CUR_THEMES
+        for folder in cur_folders
         for name in CURSORS
     }
 
@@ -190,44 +211,50 @@ def prune_stale_exports(out: Path) -> None:
             for path in root.rglob(f"*{suffix}"):
                 if path.relative_to(root) not in expected:
                     path.unlink()
+            for folder in sorted((path for path in (root, *root.rglob("*")) if path.is_dir()), reverse=True):
+                if not any(folder.iterdir()):
+                    folder.rmdir()
 
-    expected_sheets = {
-        f"sheet_{theme}{suffix}.png"
-        for theme in THEMES
-        for suffix in ("", "_small")
-    }
+    expected_sheets = {f"sheet_{theme}{suffix}.png" for theme in THEMES for suffix in SHEET_SIZES}
     for path in out.glob("sheet_*.png"):
         if path.name not in expected_sheets:
             path.unlink()
 
 
+def check_config() -> None:
+    """Stops the build on a theme or cursor name in config.py that does not exist."""
+    problems = [f"  {setting}: unknown theme {theme!r}"
+                for setting, themes in (("SVG_THEMES", SVG_THEMES), ("PNG_THEMES", PNG_THEMES),
+                                        ("CUR_THEMES", CUR_THEMES))
+                for theme in themes if theme not in THEMES]
+    problems += [f"  EXPORT_CURSORS: unknown cursor {name!r}" for name in EXPORT_CURSORS if name not in CURSORS]
+    if problems:
+        sys.exit("config.py:\n" + "\n".join(problems))
+
+
 def main() -> None:
-    check_padding()
-    out = Path(sys.argv[1] if len(sys.argv) > 1 else "cursors_out")
-    (out / "svg").mkdir(parents=True, exist_ok=True)
+    check_config()
+    names = [name for name in CURSORS if not EXPORT_CURSORS or name in EXPORT_CURSORS]
+    check_padding(names)
+    out = Path(sys.argv[1] if len(sys.argv) > 1 else OUTPUT_FOLDER)
+    for name in names:
+        for theme in SVG_THEMES:
+            target(out / "svg" / theme / f"{name}.svg").write_text(build_svg(name, SVG_SIZE, theme), encoding="utf-8")
+        export_cursor(out, name)
+    manifest = {name: {"hotspot_32": CURSORS[name][0], "canvas": canvas_size(name)} for name in CURSORS}
+    manifest["_meta"] = {"themes": list(THEMES)}
+    target(out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    preview_file = out / "preview.html"
+    if EXPORT_PREVIEW:
+        preview_file.write_text(preview_html(preview_png, names), encoding="utf-8")
+    else:
+        preview_file.unlink(missing_ok=True)
     for theme in THEMES:
-        for size in CUR_SIZES:
-            for kind in ("png", "cur"):
-                (out / kind / theme / str(size)).mkdir(parents=True, exist_ok=True)
-        (out / "cur" / theme / MULTI_SIZE_FOLDER).mkdir(parents=True, exist_ok=True)
-    manifest = {}
-    for name in CURSORS:
-        (out / "svg" / f"{name}.svg").write_text(build_svg(name), encoding="utf-8")
-        for theme in THEMES:
-            export_cursor(out, name, theme)
-        manifest[name] = {
-            "hotspot_32": CURSORS[name][0],
-            "canvas": canvas_size(name),
-        }
-    manifest["_meta"] = {"theme": THEME, "themes": list(THEMES)}
-    (out / "cursors.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    (out / "preview.html").write_text(preview_html(preview_png), encoding="utf-8")
-    for theme in THEMES:
-        for suffix, size in (("", 96), ("_small", ACTUAL_SIZE)):
-            contact_sheet(out / f"sheet_{theme}{suffix}.png", image_side, render_image,
-                          theme=theme, pixels_per_unit=size)
+        for suffix, size in SHEET_SIZES.items():
+            contact_sheet(out / f"sheet_{theme}{suffix}.png", render_image, names, theme=theme, pixels_per_unit=size)
     prune_stale_exports(out)
-    print(f"ready: {len(CURSORS)} cursors (themes={', '.join(THEMES)}) -> {out.resolve()}")
+    print(f"ready: {len(names)} cursors (svg={', '.join(SVG_THEMES) or '-'}; png={', '.join(PNG_THEMES) or '-'}; "
+          f"cur={', '.join(CUR_THEMES) or '-'}) -> {out.resolve()}")
 
 
 if __name__ == "__main__":

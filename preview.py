@@ -5,19 +5,22 @@ import base64
 from pathlib import Path
 from typing import Callable
 
+from config import (
+    ACTUAL_SIZE,
+    GRID,
+    LARGE_PIXELS_PER_UNIT,
+    PIXEL_ZOOM,
+    SHEET_COLUMNS,
+    THEMES,
+)
 from cursors import (
     build_svg,
     canvas_size,
-    ACTUAL_SIZE,
+    image_side,
     CURSORS,
-    GRID,
-    THEME,
-    THEMES,
 )
 
-LARGE_PIXELS_PER_UNIT = 2
 LARGE_PANEL_PADDING = 10
-PIXEL_ZOOM = 3
 
 PREVIEW_STYLES = """<style>
     body {
@@ -388,7 +391,7 @@ def _card(name: str, render_png: Callable[[str, int, str], bytes]) -> str:
             f'{"".join(large_blocks)}'
             f'<div class="meta">'
             f'<div class="name">{name}</div>'
-            f'<div class="hotspot">hotspot {hotspot_x:g},{hotspot_y:g} · export: {THEME}</div>'
+            f'<div class="hotspot">hotspot {hotspot_x:g},{hotspot_y:g}</div>'
             f'</div>'
             f'<div class="actual-label view-compact">Actual ({ACTUAL_SIZE}px, 1:1)</div>'
             f'{"".join(actual_blocks)}'
@@ -397,9 +400,9 @@ def _card(name: str, render_png: Callable[[str, int, str], bytes]) -> str:
             f'</div>')
 
 
-def preview_html(render_png: Callable[[str, int, str], bytes]) -> str:
+def preview_html(render_png: Callable[[str, int, str], bytes], names: list[str]) -> str:
     """render_png(name, size, theme) returns the PNG bytes of one cursor at a fitted size."""
-    cards = "".join(_card(name, render_png) for name in CURSORS)
+    cards = "".join(_card(name, render_png) for name in names)
     return ("<!doctype html><meta charset=utf-8><title>Cursors</title>"
             + PREVIEW_STYLES
             + f'<div id="grid" class="grid">{cards}</div>'
@@ -408,22 +411,22 @@ def preview_html(render_png: Callable[[str, int, str], bytes]) -> str:
 
 def contact_sheet(
     path: Path,
-    image_side: Callable,
     render_image: Callable,
-    theme: str | None = None,
-    pixels_per_unit: int = 96,
+    names: list[str],
+    theme: str,
+    pixels_per_unit: int,
 ) -> None:
     """Render a quick-check sheet on pure white and black backgrounds."""
     from PyQt6.QtGui import QColor, QImage, QPainter
-    columns = 4
-    panel = max(image_side(name, pixels_per_unit) for name in CURSORS) + 16
+    columns = SHEET_COLUMNS
+    panel = max(image_side(name, pixels_per_unit) for name in names) + 16
     cell_width, row_height = 2 * panel + 20, panel + 20
-    rows = (len(CURSORS) + columns - 1) // columns
+    rows = (len(names) + columns - 1) // columns
     sheet = QImage(columns * cell_width, rows * row_height, QImage.Format.Format_ARGB32)
     sheet.fill(QColor("#808080"))
     painter = QPainter(sheet)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    for index, name in enumerate(CURSORS):
+    for index, name in enumerate(names):
         left, top = (index % columns) * cell_width + 10, (index // columns) * row_height + 8
         painter.fillRect(left, top, panel, panel, QColor("#ffffff"))
         painter.fillRect(left + panel, top, panel, panel, QColor("#000000"))

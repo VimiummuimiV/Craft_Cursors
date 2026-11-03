@@ -6,36 +6,27 @@ import re
 from dataclasses import dataclass, replace
 from typing import Callable
 
+from config import (
+    GRID,
+    H,
+    PADDING,
+    SW,
+    THEMES,
+)
 from gridfit import (
     Fit,
     number,
     pixel,
 )
 
-# ============================== STYLE ======================================
-GRID = 32            # logical cursor grid: one unit is exactly one pixel at the base size
-SW = 2               # thickness of all outlines and lines, whole pixels at the base size
-H = 2                # halo width, whole pixels at the base size
-# Windows asks for 32 px at 100% and 40/48/56/64/72/80/96 px at 125-300% scaling; 112 and 128 serve the
-# larger cursor-size settings. Each entry is grid-fitted on its own, so every size stays sharp.
-CUR_SIZES = (32, 40, 48, 56, 64, 72, 80, 96, 112, 128)
-ACTUAL_SIZE = GRID         # size shown 1:1 in previews
-
+# ============================== DERIVED ====================================
 # Allowed region: every cursor, halo included, stays at least PADDING away from all four canvas edges.
 # Shapes derived from the constants below follow PADDING automatically; hand-drawn geometry
 # (hands, arrow, scissors, wand, bucket) is verified by check_padding() in main.py.
-PADDING = 1
 LINE_REACH = SW / 2 + H            # how far a line's halo sticks out past its centerline
 PAPER_REACH = SW + H               # same for outlined forms (stroke on both sides of the edge)
 LINE_INSET = PADDING + LINE_REACH  # nearest a line's centerline may get to a canvas edge
 LINE_FAR_EDGE = GRID - LINE_INSET  # farthest a line's centerline may reach
-
-# Color themes: "dark" = white outline on black paper (default), "light" = black on white
-THEMES = {
-    "dark":  {"ink": "#ffffff", "paper": "#000000", "halo": "#000000"},
-    "light": {"ink": "#000000", "paper": "#ffffff", "halo": "#ffffff"},
-}
-THEME = "dark"       # default export theme; change to "light" for the inverse
 # ===========================================================================
 
 # Cursor rotation angles, in degrees.
@@ -109,10 +100,10 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
                                            f'r="{number(radius + grow)}" {attrs}{rotation}/>')
 
 
-def render(shapes: list[Shape], fit: Fit, theme: str | None = None, cursor: str = "cursor") -> str:
-    """theme: 'dark' | 'light' | None (= THEME). A cursor of one group is a single <g> named `cursor`; several groups nest in it.
+def render(shapes: list[Shape], fit: Fit, theme: str, cursor: str = "cursor") -> str:
+    """theme: a key of THEMES. A cursor of one group is a single <g> named `cursor`; several groups nest in it.
     Inside a group the painting order is halo, outline, fill, details."""
-    colors = THEMES[theme or THEME]
+    colors = THEMES[theme]
     ink, paper, halo = colors["ink"], colors["paper"], colors["halo"]
     stroke, halo_width = fit.stroke, fit.halo
     placed = [(shape, shape.name or f"{shape.kind}_{index}", _place(shape, fit))
@@ -825,7 +816,7 @@ def image_side(name: str, size: int) -> int:
     return round(max(canvas_size(name)) * size / GRID)
 
 
-def build_svg(name: str, size: int = GRID, theme: str | None = None) -> str:
+def build_svg(name: str, size: int, theme: str) -> str:
     """size = pixels per GRID units, so the scale is the same for every canvas. The geometry is fitted to that
     size and written in pixels, so the rasterizer hits whole pixels."""
     hot, factory = CURSORS[name]

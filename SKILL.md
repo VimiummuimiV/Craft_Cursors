@@ -1,17 +1,26 @@
 ---
 name: cursor-style-rules
-description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/VectorCraft... cursor set (cursors.py, gridfit.py, main.py, preview.py) - 32 grid, 2 px outline and halo, grid fitting per size, hotspots, badges, padding, delivery rules. Use when drawing, editing, reviewing or exporting any cursor (SVG, PNG, .cur) of this project.
+description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/VectorCraft... cursor set (config.py, cursors.py, gridfit.py, main.py, preview.py) - single config file, 32 grid, 2 px outline and halo, grid fitting per size, hotspots, badges, padding, delivery rules. Use when drawing, editing, reviewing or exporting any cursor (SVG, PNG, .cur) of this project.
 ---
 
 # Cursor Set Rules
 
 ## Files
 
-- `cursors.py` - style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
+- `config.py` - the single place for every setting (see Config). Imports nothing from the project.
+- `cursors.py` - derived style constants, `Shape` primitives, every cursor's geometry, the `CURSORS` registry, `build_svg`.
 - `gridfit.py` - pixel grid fitting of one render size (`Fit`, `pixel`, `number`). Knows nothing about cursors.
 - `main.py` - build: padding check, SVG/PNG/.cur export, stale generated-file cleanup, manifest. `preview.py` - preview.html and contact sheets.
-- `requirements.txt` - `PyQt6` only (PNG/.cur rendering, contact sheets). `cursors.py` and `gridfit.py` use the standard library; `preview.html` loads html2canvas from a CDN for its Save PNG button.
-- Output: `svg/`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `pip install -r requirements.txt`, then `python main.py [out]`.
+- `requirements.txt` - `PyQt6` only (PNG/.cur rendering, contact sheets). `config.py`, `cursors.py` and `gridfit.py` use the standard library; `preview.html` loads html2canvas from a CDN for its Save PNG button.
+- Output: `svg/<theme>/name.svg`, `png/{dark,light}/<size>/name.png`, `cur/{dark,light}/<size>/name.cur`, `cur/{dark,light}/multi/name.cur` (all sizes in one file, for installing), `preview.html`, `sheet_*.png`, `cursors.json`. Run: `pip install -r requirements.txt`, then `python main.py [out]`; the folder argument is optional, `OUTPUT_FOLDER` is the default.
+
+## Config
+
+- Every setting that is worth changing lives in `config.py`, with a one-line comment: output folder, `EXPORT_CURSORS` (() = all), `SVG_THEMES` / `PNG_THEMES` / `CUR_THEMES` (themes exported per format, () switches the format off), `CUR_SIZES`, `SVG_SIZE`, `CUR_SINGLE_SIZE_FILES`, `CUR_MULTI_SIZE_FILE`, style (`GRID`, `SW`, `H`, `PADDING`, `THEMES` palette), preview options (`EXPORT_PREVIEW`, `ACTUAL_SIZE`, `LARGE_PIXELS_PER_UNIT`, `PIXEL_ZOOM`, `SHEET_COLUMNS`, `SHEET_SIZES`).
+- Nothing is changed by hunting through code or by console flags: a new tunable setting goes into `config.py` and the other files import it from there. Never define the same setting twice and never hard-code a value that has a config entry.
+- No implicit default theme: `build_svg`, `render` and `render_image` take `theme` explicitly; each export format reads its own theme list. Themes shape no geometry, so the padding check uses the first theme of `THEMES`.
+- `main.py` stops with a list when `config.py` names an unknown theme or cursor. Stale files of a format or theme that was switched off are removed, together with emptied folders; with `EXPORT_CURSORS` set, files of the other cursors stay.
+- Defaults reproduce the approved output byte for byte (SVG: dark only); verify that after touching the build code.
 
 ## Look
 
@@ -29,8 +38,8 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 ## Grid and style numbers
 
 - Logical grid 32x32; one grid unit is exactly one pixel at the base size (100% scaling).
-- `SW = 2` (outline and line thickness), `H = 2` (halo width). Both must stay whole pixels and even, so centered lines land on pixel edges.
-- `PADDING = 1`: every cursor, halo included, stays 1 unit from all four canvas edges. `check_padding()` stops the build and lists offenders.
+- `SW = 2` (outline and line thickness), `H = 2` (halo width), both in `config.py`. Both must stay whole pixels and even, so centered lines land on pixel edges. `GRID = 32` is fixed: all geometry is drawn on it.
+- `PADDING = 1` (`config.py`): every cursor, halo included, stays 1 unit from all four canvas edges. `check_padding()` stops the build and lists offenders.
 - Derived: `LINE_REACH = SW/2 + H`, `PAPER_REACH = SW + H`, `LINE_INSET = PADDING + LINE_REACH` (nearest a line centerline may get to an edge, 4), `LINE_FAR_EDGE = GRID - LINE_INSET` (28). Line ends, arrow tips and tool tips use these, never literals.
 - Canvas grows only when a badge does not fit (`CANVAS`); when cursor artwork is translated, translate its hotspot equally.
 
@@ -48,11 +57,11 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 ## Grid fitting per size
 
-- `.cur` carries `CUR_SIZES = 32, 40, 48, 56, 64, 72, 80, 96, 112, 128`: Windows picks the exact size at 100-300% scaling and the cursor-size slider, so the OS never resamples. Every size is also exported as PNG and as a single-size .cur into its own folder.
+- `.cur` carries `CUR_SIZES = 32, 40, 48, 56, 64, 72, 80, 96, 112, 128` (`config.py`): Windows picks the exact size at 100-300% scaling and the cursor-size slider, so the OS never resamples. Every size is also exported as PNG and as a single-size .cur into its own folder.
 - `build_svg(name, size)` fits the geometry to `size` and writes it in pixels: stroke = `SW` rounded half up, halo = `H` rounded half down (whole pixels), odd stroke centers on pixel centers, unrotated endpoints snap, control points follow their endpoint.
 - Geometry passed to the fitter uses absolute path commands only (`M L H V C S Q T A Z`); relative commands raise an error.
 - `render_image` must call `build_svg(name, size, ...)` with the real size, never the default, otherwise the SVG is scaled unfitted.
-- The exported `svg/` files are fitted for the 32 base: crisp at 1x, 2x, 3x. A renderer that needs a fractional scale should use the fitted PNG/.cur sizes instead of scaling the SVG.
+- The exported `svg/<theme>/` files are fitted for `SVG_SIZE` (32 by default): crisp at 1x, 2x, 3x. A renderer that needs a fractional scale should use the fitted PNG/.cur sizes instead of scaling the SVG.
 
 ## Badges
 
@@ -74,9 +83,10 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 - One cursor at a time until approved. Keep the approved designs; change geometry only where the grid requires it, and say what moved.
 - Verify after any change: build passes the padding check; at 32 px dump the alpha of the cursor (full 0/255 coverage on axis-aligned parts); look at the 32 px render zoomed with nearest-neighbor (`preview.html` Pixels view), then at 48 and 64. SVG: the first `<g>` is named after the cursor, ids are unique and underscore-only.
 - A soft pixel on an axis-aligned line or edge is a bug (off-grid coordinate, odd `SW`, wrong `sharp`), not a style choice.
-- Deliver only modified files, complete, as native file attachments. Send the API zip (`cursors.py`, `gridfit.py`, `main.py`, `preview.py`, Rust manager) only when the API itself changes; otherwise just the new or changed cursor files. No markdown files in the API archive.
+- Deliver only modified files, complete, as native file attachments. Send the API zip (`config.py`, `cursors.py`, `gridfit.py`, `main.py`, `preview.py`, Rust manager) only when the API itself changes; otherwise just the new or changed cursor files. No markdown files in the API archive.
 
 ## Code
 
+- Settings go to `config.py` (see Config); constants derived from them stay next to their use.
 - Follow the personal coding rules: no duplication, no overcomplication, full descriptive names, no magic numbers in function bodies, import groups (stdlib, third party, local), one name per line in multi-name imports (functions first, then ALL-CAPS constants).
 - Comments are terse one-liners only where something is genuinely non-obvious. No multi-line explanatory blocks, no file history.
