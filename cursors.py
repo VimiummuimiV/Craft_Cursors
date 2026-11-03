@@ -185,8 +185,9 @@ def path_shape(
     transform: tuple[float, float, float] = (0.0, 0.0, 0.0),
     sharp: bool = False,
     name: str = "",
+    group: str = "",
 ) -> Shape:
-    return Shape(kind, path_data, None, top, transform, sharp, name)
+    return Shape(kind, path_data, None, top, transform, sharp, name, group)
 
 
 def _circle(center_x: float, center_y: float, radius: float, kind: str, top: bool = False,
@@ -347,7 +348,7 @@ _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 def arrow_corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line", name="corner_arc")]
+    return arrow() + [path_shape(_CORNER_MARK, "line", name="badge_corner_arc", group="badge")]
 
 
 _LENS_RADIUS = 8
