@@ -80,4 +80,3 @@ description: Style, geometry and pixel-perfect rules for the shared PhotoCraft/V
 
 - Follow the personal coding rules: no duplication, no overcomplication, full descriptive names, no magic numbers in function bodies, import groups (stdlib, third party, local), one name per line in multi-name imports (functions first, then ALL-CAPS constants).
 - Comments are terse one-liners only where something is genuinely non-obvious. No multi-line explanatory blocks, no file history.
-- Discussion in Russian, code and comments in English.
