@@ -838,14 +838,17 @@ def _help() -> list[_Shape]:
 # _add_badged() looks in the base's group first, then in "shared".
 _BADGE_HALF_SIZE = 3
 _BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
-_WIDTH_HALF_LENGTH = 5       # width badge: lemon tips from the origin
-_WIDTH_BULGE = 4             # width badge: control point height, the lemon rises half of it
+_WIDTH_HALF_LENGTH = 6       # width badge: lemon tips from the origin
+_WIDTH_RISE = 4              # width badge: top and bottom from the tip line
+_WIDTH_CONTROL_X = 2         # width badge: horizontal offset of the cubic control points
+_CUBIC_BULGE = 4 / 3         # control point height / height reached by a symmetric cubic
 _SEGMENT_HALF_WIDTH = 4      # curve badge: arch ends from the origin
 _SEGMENT_END_Y = 2
 _SEGMENT_POINT_HALF_SIZE = 2   # curve badge: end point squares
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
-_DIRECT_SELECTION_SHIFT_CURSORS = ("arrow_direct_selection_add", "arrow_direct_selection_delete", "arrow_direct_selection_anchor")
+_DIRECT_SELECTION_SHIFT_CURSORS = ("arrow_direct_selection_add", "arrow_direct_selection_delete",
+                                   "arrow_direct_selection_anchor", "arrow_direct_selection_width")
 _BADGE_SHIFT = {"arrow": 3, "pen": 2, **dict.fromkeys(_DIRECT_SELECTION_SHIFT_CURSORS, 1)}   # base or cursor -> units its badges move right and down from _BADGE_ORIGIN
 
 
@@ -859,6 +862,15 @@ def _segment_badge() -> list[_Shape]:
     ]
 
 
+def _width_badge() -> list[_Shape]:
+    """Filled lemon shape made from two cubic curves."""
+    tip, control_x = _WIDTH_HALF_LENGTH, _WIDTH_CONTROL_X
+    control_y = number(_WIDTH_RISE * _CUBIC_BULGE)
+    outline = (f"M{-tip} 0 C{-control_x} -{control_y} {control_x} -{control_y} {tip} 0 "
+               f"C{control_x} {control_y} {-control_x} {control_y} {-tip} 0 Z")
+    return [_path_shape(outline, "fill", name="width")]
+
+
 _BADGES: dict[str, dict[str, list[_Shape]]] = {
     "shared": {
         "plus": [_path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
@@ -866,8 +878,7 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
         "ring": [_circle(0, 0, 3, "line", name="ring")],
         "anchor": [_square(0, 0, _BADGE_HALF_SIZE, "ink", name="anchor")],
         "segment": _segment_badge(),
-        "width": [_path_shape(f"M{-_WIDTH_HALF_LENGTH} 0 Q0 {-_WIDTH_BULGE} {_WIDTH_HALF_LENGTH} 0 "
-                              f"Q0 {_WIDTH_BULGE} {-_WIDTH_HALF_LENGTH} 0 Z", "line", name="width")],
+        "width": _width_badge(),
         "not_allowed": _not_allowed_mark(_NOT_ALLOWED_BADGE_RADIUS),
         "help": _help_mark(_HELP_BADGE_HALF_WIDTH),
     },
