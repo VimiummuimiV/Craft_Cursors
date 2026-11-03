@@ -564,30 +564,38 @@ def note() -> list[Shape]:
 
 
 # Direction cursors: solid arrowheads at the allowed region edge, joined by shafts through the canvas center.
+# A head's length equals its half width, so both head edges run exactly along the pixel diagonal.
 _ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
-_ARROW_HEAD_LENGTH = 4       # equal to the half width: both head edges run exactly along the pixel diagonal
-_ARROW_HEAD_HALF_WIDTH = 4
+_ARROW_HEAD_SIZE = 4
+_MOVE_BADGE_REACH = 6        # the badge cross is drawn around its own origin
+_MOVE_BADGE_HEAD_SIZE = 3
 
 
-def _arrow_head(direction_x: int, direction_y: int) -> str:
-    """Triangle path with its tip at the allowed region edge, pointing along the direction."""
-    tip_x, tip_y = _CANVAS_CENTER + direction_x * _ARROW_REACH, _CANVAS_CENTER + direction_y * _ARROW_REACH
-    base_x, base_y = tip_x - direction_x * _ARROW_HEAD_LENGTH, tip_y - direction_y * _ARROW_HEAD_LENGTH
-    side_x, side_y = -direction_y * _ARROW_HEAD_HALF_WIDTH, direction_x * _ARROW_HEAD_HALF_WIDTH
+def _arrow_head(direction_x: int, direction_y: int, center: int, reach: int, head_size: int) -> str:
+    """Triangle path with its tip `reach` from the center, pointing along the direction."""
+    tip_x, tip_y = center + direction_x * reach, center + direction_y * reach
+    base_x, base_y = tip_x - direction_x * head_size, tip_y - direction_y * head_size
+    side_x, side_y = -direction_y * head_size, direction_x * head_size
     return _path(f"M{tip_x} {tip_y}",
                  f"L{base_x + side_x} {base_y + side_y}",
                  f"L{base_x - side_x} {base_y - side_y}", "Z")
 
 
+def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head_size: int) -> list[Shape]:
+    """Double arrows along the chosen axes around `center`. Builds both the direction cursors and the move badge."""
+    shaft_reach = reach - head_size
+    axes = [axis for axis, enabled in (((1, 0), horizontal), ((0, 1), vertical)) if enabled]
+    shafts = [f"M{center - axis_x * shaft_reach} {center - axis_y * shaft_reach} "
+              f"L{center + axis_x * shaft_reach} {center + axis_y * shaft_reach}"
+              for axis_x, axis_y in axes]
+    heads = [_arrow_head(sign * axis_x, sign * axis_y, center, reach, head_size)
+             for axis_x, axis_y in axes for sign in (-1, 1)]
+    return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
+
+
 def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     """Double arrows along the chosen axes: resize for one axis, move for both."""
-    shaft_reach = _ARROW_REACH - _ARROW_HEAD_LENGTH
-    axes = [axis for axis, enabled in (((1, 0), horizontal), ((0, 1), vertical)) if enabled]
-    shafts = [f"M{_CANVAS_CENTER - axis_x * shaft_reach} {_CANVAS_CENTER - axis_y * shaft_reach} "
-              f"L{_CANVAS_CENTER + axis_x * shaft_reach} {_CANVAS_CENTER + axis_y * shaft_reach}"
-              for axis_x, axis_y in axes]
-    heads = [_arrow_head(sign * axis_x, sign * axis_y) for axis_x, axis_y in axes for sign in (-1, 1)]
-    return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
+    return _arrow_cross(horizontal, vertical, _CANVAS_CENTER, _ARROW_REACH, _ARROW_HEAD_SIZE)
 
 
 # Scissors: two blades along 3:1 and 1:3 (whole lattice steps) cross at their midpoints; each ends tangent to a ring.
@@ -692,7 +700,7 @@ def fill() -> list[Shape]:
 _BADGE_HALF_SIZE = 3
 BADGE_ORIGIN = GRID - PADDING - LINE_REACH - _BADGE_HALF_SIZE
 _SCISSORS_BADGE_INSET = -3   # blade tip, relative to BADGE_ORIGIN: the scissors stay clear of the arrow tip
-_SCISSORS_BADGE_CANVAS = (40, 40)   # ring outline, halo and padding past the badge origin
+_LARGE_BADGE_CANVAS = (40, 40)   # outline, halo and padding of a bulky badge past the badge origin
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
         "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True)],
@@ -701,6 +709,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
     },
     "arrow": {
         "scissors": _scissors(_SCISSORS_BADGE_INSET, 4, (0, -2), 1),
+        "move": _arrow_cross(True, True, 0, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE),
     },
     "pen": {
         "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line")],
@@ -769,7 +778,8 @@ for name, (base, badge) in {
     "arrow_direct_selection_delete": ("arrow_direct_selection", "minus"),
 }.items():
     add_badged(name, base, badge)
-add_badged("arrow_scissors", "arrow", "scissors", _SCISSORS_BADGE_CANVAS)
+add_badged("arrow_scissors", "arrow", "scissors", _LARGE_BADGE_CANVAS)
+add_badged("arrow_move", "arrow", "move", _LARGE_BADGE_CANVAS)
 
 
 def canvas_size(name: str) -> tuple[float, float]:
