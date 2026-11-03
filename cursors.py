@@ -703,6 +703,53 @@ def _fill() -> list[_Shape]:
     ]
 
 
+# Prohibition and help marks: each is drawn once around its own origin and serves both the standalone cursors
+# (centered on the canvas) and the badges, so the same circle and question mark appear everywhere.
+_NOT_ALLOWED_RADIUS = _CANVAS_CENTER - _LINE_INSET   # standalone ring touches the allowed region
+_NOT_ALLOWED_BADGE_RADIUS = 5
+_SLASH_REACH = _HALF_DIAGONAL                        # slash ends sit on the whole-number diagonal inside the ring
+_HELP_RING_RADIUS = _NOT_ALLOWED_RADIUS
+_HELP_STANDALONE_HALF_WIDTH = 3
+_HELP_BADGE_HALF_WIDTH = 2
+_HELP_DOT_RATIO = 0.5       # dot radius / mark half width
+_HELP_DOT_DEPTH = 3         # dot center below the origin, in mark half widths
+_HELP_HOOK_HEIGHT = 2.5       # top control point above the origin, in mark half widths
+_HELP_STANDALONE_SHIFT = -2  # the mark is taller above the origin than below it
+
+
+def _not_allowed_mark(radius: int) -> list[_Shape]:
+    """Ring with a slash from the top left to the bottom right, centered on the origin."""
+    end = math.floor(radius * _SLASH_REACH)
+    return [
+        _circle(0, 0, radius, "line", name="not_allowed_ring"),
+        _path_shape(f"M{-end} {-end} L{end} {end}", "line", name="not_allowed_slash"),
+    ]
+
+
+def _help_mark(half_width: int) -> list[_Shape]:
+    """Question mark: hook over a stem and a dot, centered on the origin; every anchor is a whole number."""
+    side, top = half_width, _HELP_HOOK_HEIGHT * half_width
+    hook = _path(f"M{-side} {-side}", f"C{-side} {-top} {side} {-top} {side} {-side}", f"C{side} 0 0 0 0 {side}")
+    return [
+        _path_shape(hook, "line", name="help_hook"),
+        _circle(0, _HELP_DOT_DEPTH * half_width, half_width * _HELP_DOT_RATIO, "ink", name="help_dot"),   # not a dot: its halo must stay under the ring
+    ]
+
+
+def _centered(shapes: list[_Shape], y_shift: float = 0.0) -> list[_Shape]:
+    """Moves shapes drawn around their own origin to the canvas center."""
+    return [replace(shape, transform=(_CANVAS_CENTER, _CANVAS_CENTER + y_shift, 0)) for shape in shapes]
+
+
+def _not_allowed() -> list[_Shape]:
+    return _centered(_not_allowed_mark(_NOT_ALLOWED_RADIUS))
+
+
+def _help() -> list[_Shape]:
+    ring = _circle(0, 0, _HELP_RING_RADIUS, "line", name="help_ring")
+    return _centered([ring]) + _centered(_help_mark(_HELP_STANDALONE_HALF_WIDTH), _HELP_STANDALONE_SHIFT)
+
+
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
 # Every glyph is drawn once around its own origin (0, 0) on whole units. A small glyph (no farther than
 # _BADGE_HALF_SIZE from it) sits on _BADGE_ORIGIN in the bottom right corner of the allowed region; _BADGE_SHIFT
@@ -722,6 +769,8 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
         "plus": [_path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
         "minus": [_path_shape("M-3 0 H3", "line", sharp=True, name="minus")],
         "ring": [_circle(0, 0, 3, "line", name="ring")],
+        "not_allowed": _not_allowed_mark(_NOT_ALLOWED_BADGE_RADIUS),
+        "help": _help_mark(_HELP_BADGE_HALF_WIDTH),
     },
     "arrow": {
         "scissors": _scissors_shapes(_SCISSORS_BADGE_INSET, _SCISSORS_BADGE_LENGTH, (0, -2), 1),
@@ -774,6 +823,8 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), _artboard),
     "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), _note),
     "fill": (_DROP_HOTSPOT, _fill),
+    "not_allowed": ((_CANVAS_CENTER, _CANVAS_CENTER), _not_allowed),
+    "help": ((_CANVAS_CENTER, _CANVAS_CENTER), _help),
 }
 
 _CANVAS: dict[str, tuple[float, float]] = {}
@@ -824,6 +875,8 @@ for _name, (_base, _badge) in {
     _add_badged(_name, _base, _badge)
 _add_badged("arrow_scissors", "arrow", "scissors")
 _add_badged("arrow_move", "arrow", "move")
+_add_badged("arrow_help", "arrow", "help")
+_add_badged("arrow_not_allowed", "arrow", "not_allowed")
 
 
 def image_side(name: str, size: int) -> int:
