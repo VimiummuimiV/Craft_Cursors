@@ -340,6 +340,17 @@ def _text_cursor(vertical: bool = False, area: bool = False) -> list[_Shape]:
     return [replace(shape, path=_turn_path(shape.path)) for shape in shapes] if vertical else shapes
 
 
+def _type_on_path() -> list[_Shape]:
+    """Type on path: left-shifted I-beam with a bottom-right curve badge."""
+    beam = [replace(shape, group="type") for shape in _text_cursor(area=True) if shape.name == "beam"]
+    origin = _BADGE_ORIGIN
+    badge = [
+        replace(shape, transform=(origin, origin, 0), name=f"badge_{shape.name}", group="badge")
+        for shape in _BADGES["pen"]["curve"]
+    ]
+    return beam + badge
+
+
 _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 
@@ -838,6 +849,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _text_cursor(vertical=True)),
     "type_area_horizontal": (_AREA_HOTSPOT, lambda: _text_cursor(area=True)),
     "type_area_vertical": (_turn_point(*_AREA_HOTSPOT), lambda: _text_cursor(vertical=True, area=True)),
+    "type_on_path": (_AREA_HOTSPOT, _type_on_path),
     # zoom
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: _zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: _zoom("-")),
