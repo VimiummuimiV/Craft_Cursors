@@ -1,7 +1,6 @@
 """Cursor shapes, drawing primitives, and shared style settings."""
 from __future__ import annotations
 
-import itertools
 import math
 import re
 from dataclasses import dataclass, replace
@@ -69,8 +68,9 @@ class Shape:
     transform: (x, y, angle) moves the origin to x, y and rotates by angle degrees; an unrotated shape
       is snapped to the pixel grid, a rotated one only has its origin snapped
     sharp: square line ends and mitered corners, for axis-aligned geometry that must stay crisp
-    name: element id in the SVG, unique inside a cursor (elements of other layers add -halo / -fill)
-    group: shapes with the same group nest into a <g> of their own inside every layer (badges)
+    name: element id in the SVG, unique inside a cursor (its halo and fill elements add _halo / _fill)
+    group: the <g> that holds the shape's elements; empty = the cursor's own group. A group keeps its own
+      painting order (halo, outline, fill, details)
     """
     kind: str
     path: str = ""
@@ -108,22 +108,13 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
                                            f'r="{number(radius + grow)}" {attrs}{rotation}/>')
 
 
-def _layer(layer: str, elements: list[tuple[str, str]]) -> str:
-    """One <g> per rendering layer; elements are (group, svg element) pairs, and consecutive elements of
-    one group nest into a <g> of their own."""
-    lines: list[str] = []
-    for group, members in itertools.groupby(elements, key=lambda element: element[0]):
-        tags = [tag for _, tag in members]
-        lines += [f'<g id="{group}-{layer}">', *tags, "</g>"] if group else tags
-    return "\n".join([f'<g id="{layer}">', *lines, "</g>"]) if lines else ""
-
-
-def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
-    """theme: 'dark' | 'light' | None (= THEME). The layers keep the painting order: halo, outline, fill, details."""
+def render(shapes: list[Shape], fit: Fit, theme: str | None = None, cursor: str = "cursor") -> str:
+    """theme: 'dark' | 'light' | None (= THEME). One <g> per group, the cursor's own one is named `cursor`;
+    inside a group the painting order is halo, outline, fill, details."""
     colors = THEMES[theme or THEME]
     ink, paper, halo = colors["ink"], colors["paper"], colors["halo"]
     stroke, halo_width = fit.stroke, fit.halo
-    placed = [(shape, shape.name or f"{shape.kind}-{index}", _place(shape, fit))
+    placed = [(shape, shape.name or f"{shape.kind}_{index}", _place(shape, fit))
               for index, shape in enumerate(shapes, 1)]
     body = [item for item in placed if not item[0].top and item[0].kind != "dot"]
     details = [item for item in placed if item[0].top or item[0].kind == "dot"]
@@ -143,7 +134,7 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
             attrs = _stroke(halo, stroke + 2 * halo_width, halo, shape.sharp)
         else:
             attrs = _stroke(halo, stroke + 2 * halo_width, sharp=shape.sharp)
-        halos.append((shape.group, tag(attrs, f"{ident}-halo")))
+        halos.append((shape.group, tag(attrs, f"{ident}_halo")))
     # 2) outline / dark forms
     for shape, ident, tag in body:
         if shape.kind == "paper":
@@ -162,11 +153,11 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
     # 3) light fill on top (eraser for internal intersection lines)
     for shape, ident, tag in body:
         if shape.kind == "paper":
-            covers.append((shape.group, tag(_flat(paper), f"{ident}-fill")))
+            covers.append((shape.group, tag(_flat(paper), f"{ident}_fill")))
     # 4) top details
     for shape, ident, tag in details:
         if shape.kind == "dot":
-            tops.append((shape.group, tag(_flat(halo), f"{ident}-halo", halo_width)))
+            tops.append((shape.group, tag(_flat(halo), f"{ident}_halo", halo_width)))
             tops.append((shape.group, tag(_flat(ink), ident)))
         elif shape.kind == "inverse":
             tops.append((shape.group, tag(_stroke(paper, stroke, ink, shape.sharp), ident)))
@@ -174,8 +165,10 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
             tops.append((shape.group, tag(_flat(ink), ident)))
         else:
             tops.append((shape.group, tag(_stroke(ink, stroke, sharp=shape.sharp), ident)))
-    layers = (("halo", halos), ("outline", outlines), ("fill", covers), ("details", tops))
-    return "\n".join(layer for layer in (_layer(layer_id, elements) for layer_id, elements in layers) if layer)
+    groups: dict[str, list[str]] = {}
+    for group, element in (*halos, *outlines, *covers, *tops):
+        groups.setdefault(group or cursor, []).append(element)
+    return "\n".join("\n".join([f'<g id="{group}">', *elements, "</g>"]) for group, elements in groups.items())
 
 
 # ============================ GEOMETRY ====================================
@@ -345,7 +338,7 @@ def text_cursor(vertical: bool = False, area: bool = False) -> list[Shape]:
         glyph = _path(f"M{middle - tee} {center - tee} L{middle + tee} {center - tee}",
                       f"M{middle} {center - tee} L{middle} {center + tee}")
         shapes += [path_shape(rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True, name="frame"),
-                   path_shape(glyph, "line", top=True, sharp=True, name="frame-letter")]
+                   path_shape(glyph, "line", top=True, sharp=True, name="frame_letter")]
     return [replace(shape, path=_turn_path(shape.path)) for shape in shapes] if vertical else shapes
 
 
@@ -354,7 +347,7 @@ _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 def arrow_corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line", name="corner-arc")]
+    return arrow() + [path_shape(_CORNER_MARK, "line", name="corner_arc")]
 
 
 _LENS_RADIUS = 8
@@ -581,7 +574,7 @@ def note() -> list[Shape]:
     return [
         path_shape(bracket, "line", sharp=True, name="bracket"),
         path_shape(sheet, "paper", sharp=True, name="sheet"),
-        path_shape(_path(flap, text), "line", top=True, sharp=True, name="fold-and-text"),
+        path_shape(_path(flap, text), "line", top=True, sharp=True, name="fold_and_text"),
     ]
 
 
@@ -640,8 +633,8 @@ def _scissors(inset: int, length: int, ring_offset: tuple[int, int], ring_radius
     blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
     return [
         path_shape(blades, "line", name="blades"),
-        _circle(*ring, ring_radius, "paper", name="ring-1"),
-        _circle(*ring[::-1], ring_radius, "paper", name="ring-2"),
+        _circle(*ring, ring_radius, "paper", name="ring_1"),
+        _circle(*ring[::-1], ring_radius, "paper", name="ring_2"),
     ]
 
 
@@ -709,7 +702,7 @@ def fill() -> list[Shape]:
                  f"{number(drop_x + _DROP_RADIUS * 0.5)} {number(drop_top + 2.2)} {drop_x} {number(drop_top)}",
                  "Z")
     return [
-        path_shape(handle, "line", transform=transform, name="bucket-handle"),
+        path_shape(handle, "line", transform=transform, name="bucket_handle"),
         path_shape(body, "paper", transform=transform, name="bucket"),
         path_shape(drop, "ink", name="drop"),
     ]
@@ -794,7 +787,7 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     canvas: size in grid units if the badge goes beyond the base's 32x32 grid."""
     hot, base_factory = CURSORS[base]
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
-    placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0), name=f"badge-{shape.name}", group="badge")
+    placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0), name=f"badge_{shape.name}", group="badge")
               for shape in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
     if canvas is not None:
@@ -838,4 +831,4 @@ def build_svg(name: str, size: int = GRID, theme: str | None = None) -> str:
     fit = Fit.for_style(scale, SW, H)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
             f'viewBox="0 0 {width} {height}" shape-rendering="geometricPrecision">\n'
-            f'<!-- hotspot: {number(hot[0])},{number(hot[1])} -->\n{render(factory(), fit, theme=theme)}\n</svg>\n')
+            f'<!-- hotspot: {number(hot[0])},{number(hot[1])} -->\n{render(factory(), fit, theme=theme, cursor=name)}\n</svg>\n')
