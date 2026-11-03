@@ -567,8 +567,9 @@ def note() -> list[Shape]:
 # A head's length equals its half width, so both head edges run exactly along the pixel diagonal.
 _ARROW_REACH = _CANVAS_CENTER - LINE_INSET   # center to arrow tip
 _ARROW_HEAD_SIZE = 4
-_MOVE_BADGE_REACH = 6        # the badge cross is drawn around its own origin
+_MOVE_BADGE_REACH = 8        # neighbouring head corners stay (reach - 2 * head size) * sqrt(2) apart
 _MOVE_BADGE_HEAD_SIZE = 3
+_MOVE_BADGE_CENTER = 3       # cross center from the badge origin: the heads stay clear of the arrow tip
 
 
 def _arrow_head(direction_x: int, direction_y: int, center: int, reach: int, head_size: int) -> str:
@@ -581,7 +582,8 @@ def _arrow_head(direction_x: int, direction_y: int, center: int, reach: int, hea
                  f"L{base_x - side_x} {base_y - side_y}", "Z")
 
 
-def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head_size: int) -> list[Shape]:
+def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head_size: int,
+                 head_kind: str = "solid") -> list[Shape]:
     """Double arrows along the chosen axes around `center`. Builds both the direction cursors and the move badge."""
     shaft_reach = reach - head_size
     axes = [axis for axis, enabled in (((1, 0), horizontal), ((0, 1), vertical)) if enabled]
@@ -590,7 +592,7 @@ def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head
               for axis_x, axis_y in axes]
     heads = [_arrow_head(sign * axis_x, sign * axis_y, center, reach, head_size)
              for axis_x, axis_y in axes for sign in (-1, 1)]
-    return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
+    return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), head_kind)]
 
 
 def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
@@ -709,7 +711,7 @@ BADGES: dict[str, dict[str, list[Shape]]] = {
     },
     "arrow": {
         "scissors": _scissors(_SCISSORS_BADGE_INSET, 4, (0, -2), 1),
-        "move": _arrow_cross(True, True, 0, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE),
+        "move": _arrow_cross(True, True, _MOVE_BADGE_CENTER, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE, "ink"),
     },
     "pen": {
         "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line")],
