@@ -64,6 +64,7 @@ class _Shape:
     group: the <g> that holds the shape's elements; empty = the cursor's own group. A cursor with a badge
       splits into the base cursor's group and `badge`, nested under a group named after the cursor.
       A group keeps its own painting order (halo, outline, fill, details)
+    snap: whether a circle is aligned to the pixel grid when rendered
     """
     kind: str
     path: str = ""
@@ -73,6 +74,7 @@ class _Shape:
     sharp: bool = False
     name: str = ""
     group: str = ""
+    snap: bool = True
 
 
 def _stroke(color: str, width: float, fill: str = "none", sharp: bool = False) -> str:
@@ -96,7 +98,7 @@ def _place(shape: _Shape, fit: Fit) -> Callable[..., str]:
         data = fit.path(shape.path, on_center, origin, snap=not rotated)
         return lambda attrs, ident, grow=0.0: f'<path id="{ident}" d="{data}" {attrs}{rotation}/>'
     outline_reach = fit.stroke if shape.kind in ("paper", "inverse") else fit.stroke / 2 if shape.kind in _STROKED_KINDS else 0
-    center_x, center_y, radius = fit.circle(shape.circle, origin, not rotated, outline_reach)
+    center_x, center_y, radius = fit.circle(shape.circle, origin, not rotated and shape.snap, outline_reach)
     return lambda attrs, ident, grow=0.0: (f'<circle id="{ident}" cx="{number(center_x)}" cy="{number(center_y)}" '
                                            f'r="{number(radius + grow)}" {attrs}{rotation}/>')
 
@@ -185,8 +187,9 @@ def _path_shape(
 
 
 def _circle(center_x: float, center_y: float, radius: float, kind: str, top: bool = False,
-            transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "") -> _Shape:
-    return _Shape(kind, "", (center_x, center_y, radius), top, transform, name=name)
+            transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "",
+            snap: bool = True) -> _Shape:
+    return _Shape(kind, "", (center_x, center_y, radius), top, transform, name=name, snap=snap)
 
 
 def _dot(center_x: float, center_y: float, radius: float,
@@ -732,7 +735,8 @@ def _help_mark(half_width: int) -> list[_Shape]:
     hook = _path(f"M{-side} {-side}", f"C{-side} {-top} {side} {-top} {side} {-side}", f"C{side} 0 0 0 0 {side}")
     return [
         _path_shape(hook, "line", name="help_hook"),
-        _circle(0, _HELP_DOT_DEPTH * half_width, half_width * _HELP_DOT_RATIO, "ink", name="help_dot"),   # not a dot: its halo must stay under the ring
+        _circle(0, _HELP_DOT_DEPTH * half_width, half_width * _HELP_DOT_RATIO, "ink",
+                name="help_dot", snap=False),   # not a dot: its halo must stay under the ring
     ]
 
 

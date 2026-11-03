@@ -80,7 +80,8 @@ class Fit:
         center_x, center_y, radius = circle
         radius_pixels = radius * self.scale
         if not snap:
-            return center_x * self.scale, center_y * self.scale, radius_pixels
+            return ((center_x + origin[0]) * self.scale, (center_y + origin[1]) * self.scale,
+                    radius_pixels)
         odd_diameter = pixel(2 * (radius_pixels + outline_reach)) % 2 == 1
         return (self._snap(center_x + origin[0], odd_diameter), self._snap(center_y + origin[1], odd_diameter),
                 radius_pixels)
