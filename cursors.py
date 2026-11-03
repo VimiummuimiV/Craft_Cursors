@@ -843,7 +843,8 @@ _SEGMENT_END_Y = 2
 _SEGMENT_POINT_HALF_SIZE = 2   # curve badge: end point squares
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
-_BADGE_SHIFT = {"arrow": 3, "pen": 2, "arrow_direct_selection_anchor": 1}   # base or cursor -> units its badges move right and down from _BADGE_ORIGIN
+_DIRECT_SELECTION_SHIFT_CURSORS = ("arrow_direct_selection_add", "arrow_direct_selection_delete", "arrow_direct_selection_anchor")
+_BADGE_SHIFT = {"arrow": 3, "pen": 2, **dict.fromkeys(_DIRECT_SELECTION_SHIFT_CURSORS, 1)}   # base or cursor -> units its badges move right and down from _BADGE_ORIGIN
 
 
 def _segment_badge() -> list[_Shape]:
