@@ -706,8 +706,8 @@ def _fill() -> list[_Shape]:
 # Prohibition and help marks: each is drawn once around its own origin and serves both the standalone cursors
 # (centered on the canvas) and the badges, so the same circle and question mark appear everywhere.
 _NOT_ALLOWED_RADIUS = _CANVAS_CENTER - _LINE_INSET   # standalone ring touches the allowed region
-_NOT_ALLOWED_BADGE_RADIUS = 5
-_SLASH_REACH = _HALF_DIAGONAL                        # slash ends sit on the whole-number diagonal inside the ring
+_NOT_ALLOWED_BADGE_RADIUS = _MOVE_BADGE_REACH - SW / 2
+_SLASH_REACH = _HALF_DIAGONAL                        # slash ends meet the ring on the nearest whole-number diagonal
 _HELP_RING_RADIUS = _NOT_ALLOWED_RADIUS
 _HELP_STANDALONE_HALF_WIDTH = 3
 _HELP_BADGE_HALF_WIDTH = 2
@@ -717,9 +717,9 @@ _HELP_HOOK_HEIGHT = 2.5       # top control point above the origin, in mark half
 _HELP_STANDALONE_SHIFT = -2  # the mark is taller above the origin than below it
 
 
-def _not_allowed_mark(radius: int) -> list[_Shape]:
+def _not_allowed_mark(radius: float) -> list[_Shape]:
     """Ring with a slash from the top left to the bottom right, centered on the origin."""
-    end = math.floor(radius * _SLASH_REACH)
+    end = round(radius * _SLASH_REACH)
     return [
         _circle(0, 0, radius, "line", name="not_allowed_ring"),
         _path_shape(f"M{-end} {-end} L{end} {end}", "line", name="not_allowed_slash"),
