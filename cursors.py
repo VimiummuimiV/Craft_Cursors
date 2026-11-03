@@ -716,6 +716,7 @@ _HELP_STANDALONE_HALF_WIDTH = 3
 _HELP_BADGE_HALF_WIDTH = 2
 _HELP_DOT_RATIO = 0.5       # dot radius / mark half width
 _HELP_DOT_DEPTH = 2.5       # leaves a one-unit gap below the hook's halo
+_HELP_STANDALONE_DOT_DEPTH = 8 / 3  # centers the dot on the next horizontal grid line
 _HELP_HOOK_HEIGHT = 7 / 3   # the hook's actual top lands on a whole grid unit
 _HELP_STANDALONE_SHIFT = -2  # the mark is taller above the origin than below it
 
@@ -729,13 +730,13 @@ def _not_allowed_mark(radius: float) -> list[_Shape]:
     ]
 
 
-def _help_mark(half_width: int) -> list[_Shape]:
+def _help_mark(half_width: int, dot_depth: float = _HELP_DOT_DEPTH) -> list[_Shape]:
     """Question mark: hook over a stem and a dot, centered on the origin."""
     side, top = half_width, _HELP_HOOK_HEIGHT * half_width
     hook = _path(f"M{-side} {-side}", f"C{-side} {-top} {side} {-top} {side} {-side}", f"C{side} 0 0 0 0 {side}")
     return [
         _path_shape(hook, "line", name="help_hook"),
-        _circle(0, _HELP_DOT_DEPTH * half_width, half_width * _HELP_DOT_RATIO, "ink",
+        _circle(0, dot_depth * half_width, half_width * _HELP_DOT_RATIO, "ink",
                 name="help_dot", snap=False),   # not a dot: its halo must stay under the ring
     ]
 
@@ -751,7 +752,8 @@ def _not_allowed() -> list[_Shape]:
 
 def _help() -> list[_Shape]:
     ring = _circle(0, 0, _HELP_RING_RADIUS, "line", name="help_ring")
-    return _centered([ring]) + _centered(_help_mark(_HELP_STANDALONE_HALF_WIDTH), _HELP_STANDALONE_SHIFT)
+    mark = _help_mark(_HELP_STANDALONE_HALF_WIDTH, _HELP_STANDALONE_DOT_DEPTH)
+    return _centered([ring]) + _centered(mark, _HELP_STANDALONE_SHIFT)
 
 
 # Extra elements ("badges") are attached next to a base cursor; the base is never shrunk.
