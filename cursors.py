@@ -444,6 +444,16 @@ def _pen_nib() -> list[_Shape]:
     ]
 
 
+_PENCIL_TILT = 45
+_PENCIL_HOTSPOT = (_CANVAS_CENTER - 9, _CANVAS_CENTER + 9)
+
+
+def _pencil() -> list[_Shape]:
+    outline = _path("M-2 -13 L2 -13 L2 -9 L-2 -9 Z",
+                    "M-2 10 L-2 -8 L2 -8 L2 10 L0 13 Z")
+    return [_path_shape(outline, "ink", transform=(_CANVAS_CENTER, _CANVAS_CENTER, _PENCIL_TILT), name="pencil")]
+
+
 # Knife: blade (outlined) sits on the handle (solid); the blade tip is the hotspot, the tip is off the handle axis.
 _KNIFE_SEAM = -17.92         # where the blade ends and the handle starts
 _KNIFE_SPINE = -2.54         # the blunt upper edge; the handle is flush with its outline
@@ -810,6 +820,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     "pointer": (_POINTER_HOTSPOT, lambda: _hand("pointer")),
     # pen
     "pen": (_TOOL_TIP, _pen_nib),
+    "pencil": (_PENCIL_HOTSPOT, _pencil),
     # eyedropper
     "eyedropper": (_TOOL_TIP, _eyedropper),
     # crop
