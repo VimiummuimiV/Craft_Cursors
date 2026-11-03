@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, replace
 from typing import Callable
 
@@ -289,17 +290,42 @@ def direct_selection() -> list[Shape]:
     return [replace(shape, kind="inverse") for shape in arrow()]
 
 
-def text_cursor(vertical: bool = False) -> list[Shape]:
-    """I-beam insertion cursor sized to the crosshair's outer extents."""
-    center, near, far, cap_half = _CANVAS_CENTER, LINE_INSET, LINE_FAR_EDGE, 3
-    beam = _path(f"M{center - cap_half} {near} H{center + cap_half}",
-                 f"M{center} {near} V{far}",
-                 f"M{center - cap_half} {far} H{center + cap_half}")
-    if vertical:
-        beam = _path(f"M{near} {center - cap_half} V{center + cap_half}",
-                     f"M{near} {center} H{far}",
-                     f"M{far} {center - cap_half} V{center + cap_half}")
-    return [path_shape(beam, "line", sharp=True)]
+_TEXT_CAP_HALF = 3       # half width of the I-beam caps
+_TEXT_LETTER_HALF = 2    # half width of the T crossbar
+_TEXT_FRAME_SIDE = 12    # frame centerline side: 14 with its outline
+_TEXT_BEAM_X = 8         # area text: puts the beam and the frame, _TEXT_GAP apart, in the middle of the canvas
+_TEXT_GAP = SW           # clear space between the beam and the frame
+_AREA_HOTSPOT = (_TEXT_BEAM_X, _CANVAS_CENTER)
+_POINT = re.compile(r"(-?[\d.]+) (-?[\d.]+)")
+
+
+def _turn_point(x: float, y: float) -> tuple[float, float]:
+    """Quarter turn clockwise about the canvas center."""
+    return GRID - y, x
+
+
+def _turn_path(path: str) -> str:
+    """Quarter turn of an absolute M/L/Z path."""
+    return _POINT.sub(lambda point: " ".join(map(number, _turn_point(float(point[1]), float(point[2])))), path)
+
+
+def text_cursor(vertical: bool = False, area: bool = False) -> list[Shape]:
+    """I-beam insertion cursor. Area text (dragging a text frame) moves the beam left and adds a framed T
+    on the right. Vertical text turns everything a quarter turn clockwise: beam on top, frame below."""
+    cap, near, far, center = _TEXT_CAP_HALF, LINE_INSET, LINE_FAR_EDGE, _CANVAS_CENTER
+    beam_x = _TEXT_BEAM_X if area else center
+    beam = _path(f"M{beam_x - cap} {near} L{beam_x + cap} {near}", f"M{beam_x} {near} L{beam_x} {far}",
+                 f"M{beam_x - cap} {far} L{beam_x + cap} {far}")
+    shapes = [path_shape(beam, "line", sharp=True)]
+    if area:
+        tee, side, inset = _TEXT_LETTER_HALF, _TEXT_FRAME_SIDE, SW // 2
+        left, top = beam_x + cap + SW + _TEXT_GAP, center - side // 2
+        right, bottom, middle = left + side, top + side, left + side // 2
+        glyph = _path(f"M{middle - tee} {center - tee} L{middle + tee} {center - tee}",
+                      f"M{middle} {center - tee} L{middle} {center + tee}")
+        shapes += [path_shape(rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True),
+                   path_shape(glyph, "line", top=True, sharp=True)]
+    return [replace(shape, path=_turn_path(shape.path)) for shape in shapes] if vertical else shapes
 
 
 _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
@@ -564,30 +590,33 @@ def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
     return [path_shape(_path(*shafts), "line", sharp=True), path_shape(_path(*heads), "solid")]
 
 
-_SCISSORS_TILT = 45
-_SCISSORS_HOTSPOT = (7, 7)
-_SCISSORS_TRANSFORM = (*_SCISSORS_HOTSPOT, -_SCISSORS_TILT)
-_SCISSORS_PATH = _path(
-    "M0 16.25 L-1.25 18.41 C-1.03 19.41 -1.17 20.49 -1.72 21.45 "
-    "C-2.89 23.48 -5.5 24.18 -7.54 23.01 C-9.58 21.83 -10.27 19.22 "
-    "-9.1 17.19 C-7.99 15.27 -5.62 14.54 -3.64 15.44 L-2.06 12.69 "
-    "L-5.69 6.4 C-7.79 2.77 -5.27 0 -5.27 0 L0 9.12 L5.27 0 "
-    "C5.27 0 7.79 2.77 5.69 6.4 L2.06 12.69 L3.64 15.44 "
-    "C5.62 14.54 7.99 15.27 9.1 17.19 C10.27 19.22 9.58 21.83 "
-    "7.54 23.01 C5.5 24.18 2.89 23.48 1.72 21.45 "
-    "C1.17 20.49 1.03 19.41 1.25 18.41 L0 16.25 Z "
-    "M4.45 17.66 C3.54 18.19 3.22 19.36 3.75 20.27 "
-    "C4.28 21.19 5.45 21.5 6.36 20.97 C7.28 20.44 7.59 19.27 "
-    "7.06 18.36 C6.54 17.45 5.37 17.13 4.45 17.66 Z "
-    "M-4.45 17.66 C-5.37 17.13 -6.54 17.45 -7.06 18.36 "
-    "C-7.59 19.27 -7.28 20.44 -6.36 20.97 C-5.45 21.5 -4.28 21.19 "
-    "-3.75 20.27 C-3.22 19.36 -3.54 18.19 -4.45 17.66 Z",
-)
+# Scissors: two blades cross at their midpoints along 3:1 and 1:3 (whole lattice steps); each ends tangent to a ring.
+_BLADE_RUN = 3                  # units along one axis per unit along the other
+_SCISSORS_PIVOT = 13
+_SCISSORS_HALF_STEPS = 3        # half a blade in lattice steps
+_SCISSORS_RING_OFFSET = (1, -4)  # ring center from the blade end: 4.1 from the blade line, the ring's centerline radius is 4
+_SCISSORS_RING_RADIUS = 3       # hole radius, the outline grows outward
+
+
+def _blade_point(steps: int) -> tuple[int, int]:
+    return _SCISSORS_PIVOT + _BLADE_RUN * steps, _SCISSORS_PIVOT + steps
+
+
+_SCISSORS_TIP = _blade_point(-_SCISSORS_HALF_STEPS)
+_SCISSORS_END = _blade_point(_SCISSORS_HALF_STEPS)
+_SCISSORS_RING = (_SCISSORS_END[0] + _SCISSORS_RING_OFFSET[0], _SCISSORS_END[1] + _SCISSORS_RING_OFFSET[1])
+_SCISSORS_HOTSPOT = (sum(_SCISSORS_TIP) // 2,) * 2   # between the blade tips
 
 
 def scissors() -> list[Shape]:
-    """Scissors point down in local coordinates and rotate to their intended angle."""
-    return [path_shape(_SCISSORS_PATH, "ink", transform=_SCISSORS_TRANSFORM)]
+    """The second blade and ring mirror the first across the diagonal."""
+    tip, end, ring = _SCISSORS_TIP, _SCISSORS_END, _SCISSORS_RING
+    blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
+    return [
+        path_shape(blades, "line"),
+        _circle(*ring, _SCISSORS_RING_RADIUS, "paper"),
+        _circle(*ring[::-1], _SCISSORS_RING_RADIUS, "paper"),
+    ]
 
 
 # Magic wand: a star on top of a straight stick that narrows towards it; the whole cursor rotates together.
@@ -684,6 +713,8 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
     "corner": (_ARROW_HOTSPOT, corner),
     "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), text_cursor),
     "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: text_cursor(vertical=True)),
+    "type_area_horizontal": (_AREA_HOTSPOT, lambda: text_cursor(area=True)),
+    "type_area_vertical": (_turn_point(*_AREA_HOTSPOT), lambda: text_cursor(vertical=True, area=True)),
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
     "eyedropper": (_TOOL_TIP, eyedropper),
@@ -738,6 +769,11 @@ for name, (base, badge) in {
 
 def canvas_size(name: str) -> tuple[float, float]:
     return CANVAS.get(name, (GRID, GRID))
+
+
+def image_side(name: str, size: int) -> int:
+    """Side of the square image: size pixels per GRID units, the larger canvas side decides."""
+    return round(max(canvas_size(name)) * size / GRID)
 
 
 def build_svg(name: str, size: int = GRID, theme: str | None = None) -> str:
