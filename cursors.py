@@ -712,8 +712,8 @@ _HELP_RING_RADIUS = _NOT_ALLOWED_RADIUS
 _HELP_STANDALONE_HALF_WIDTH = 3
 _HELP_BADGE_HALF_WIDTH = 2
 _HELP_DOT_RATIO = 0.5       # dot radius / mark half width
-_HELP_DOT_DEPTH = 3         # dot center below the origin, in mark half widths
-_HELP_HOOK_HEIGHT = 2.5       # top control point above the origin, in mark half widths
+_HELP_DOT_DEPTH = 2.5       # leaves a one-unit gap below the hook's halo
+_HELP_HOOK_HEIGHT = 7 / 3   # the hook's actual top lands on a whole grid unit
 _HELP_STANDALONE_SHIFT = -2  # the mark is taller above the origin than below it
 
 
@@ -727,7 +727,7 @@ def _not_allowed_mark(radius: float) -> list[_Shape]:
 
 
 def _help_mark(half_width: int) -> list[_Shape]:
-    """Question mark: hook over a stem and a dot, centered on the origin; every anchor is a whole number."""
+    """Question mark: hook over a stem and a dot, centered on the origin."""
     side, top = half_width, _HELP_HOOK_HEIGHT * half_width
     hook = _path(f"M{-side} {-side}", f"C{-side} {-top} {side} {-top} {side} {-side}", f"C{side} 0 0 0 0 {side}")
     return [
