@@ -663,6 +663,25 @@ def _arrows(horizontal: bool, vertical: bool) -> list[_Shape]:
     return _arrow_cross(horizontal, vertical, _CANVAS_CENTER, _ARROW_REACH, _ARROW_HEAD_SIZE)
 
 
+# Rotate: an arch of less than half a circle, an arrowhead of the direction cursors turned onto each end.
+_ROTATE_HALF_WIDTH = 8   # arch ends, from the canvas center
+_ROTATE_RISE = 6         # arch ends up to the top of the arch
+_ROTATE_TOP = 11
+_ROTATE_RADIUS = (_ROTATE_HALF_WIDTH ** 2 + _ROTATE_RISE ** 2) / (2 * _ROTATE_RISE)
+_ROTATE_END_ANGLE = math.degrees(math.acos(_ROTATE_HALF_WIDTH / _ROTATE_RADIUS))   # tangent tilt at the arch ends
+
+
+def _rotate() -> list[_Shape]:
+    left, right, end_y = _CANVAS_CENTER - _ROTATE_HALF_WIDTH, _CANVAS_CENTER + _ROTATE_HALF_WIDTH, _ROTATE_TOP + _ROTATE_RISE
+    radius = number(_ROTATE_RADIUS)
+    head = _arrow_head(0, 1, 0, _ARROW_HEAD_SIZE, _ARROW_HEAD_SIZE)
+    return [
+        _path_shape(f"M{left} {end_y} A{radius} {radius} 0 0 1 {right} {end_y}", "line", name="arch"),
+        _path_shape(head, "solid", transform=(left, end_y, _ROTATE_END_ANGLE), name="head_left"),
+        _path_shape(head, "solid", transform=(right, end_y, -_ROTATE_END_ANGLE), name="head_right"),
+    ]
+
+
 # Scissors: two blades along 3:1 and 1:3 (whole lattice steps) cross at their midpoints; each ends tangent to a ring.
 _BLADE_RUN = 3                    # units along one axis per unit along the other
 _SCISSORS_LENGTH = 7              # blade length in lattice steps
@@ -871,6 +890,7 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=True, vertical=True)),
     "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=True, vertical=False)),
     "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _arrows(horizontal=False, vertical=True)),
+    "rotate": ((_CANVAS_CENTER, _CANVAS_CENTER), _rotate),
     # selection tools
     "scissors": (_SCISSORS_HOTSPOT, _scissors),
     "magic_wand": (_WAND_CENTER, _magic_wand),
