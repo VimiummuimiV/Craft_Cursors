@@ -1,6 +1,7 @@
 """Cursor shapes, drawing primitives, and shared style settings."""
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from dataclasses import dataclass, replace
@@ -68,6 +69,8 @@ class Shape:
     transform: (x, y, angle) moves the origin to x, y and rotates by angle degrees; an unrotated shape
       is snapped to the pixel grid, a rotated one only has its origin snapped
     sharp: square line ends and mitered corners, for axis-aligned geometry that must stay crisp
+    name: element id in the SVG, unique inside a cursor (elements of other layers add -halo / -fill)
+    group: shapes with the same group nest into a <g> of their own inside every layer (badges)
     """
     kind: str
     path: str = ""
@@ -75,6 +78,8 @@ class Shape:
     top: bool = False
     transform: tuple[float, float, float] = (0.0, 0.0, 0.0)
     sharp: bool = False
+    name: str = ""
+    group: str = ""
 
 
 def _stroke(color: str, width: float, fill: str = "none", sharp: bool = False) -> str:
@@ -87,7 +92,7 @@ def _flat(color: str) -> str:
 
 
 def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
-    """Returns tag(attrs, grow=0): the shape as an SVG element in pixel units; grow widens a circle."""
+    """Returns tag(attrs, ident, grow=0): the shape as an SVG element in pixel units; grow widens a circle."""
     origin_x, origin_y, angle = shape.transform
     rotated = angle != 0
     origin = (0.0, 0.0) if rotated else (origin_x, origin_y)
@@ -96,24 +101,38 @@ def _place(shape: Shape, fit: Fit) -> Callable[..., str]:
     if shape.circle is None:
         on_center = shape.kind in _STROKED_KINDS and fit.stroke % 2 == 1
         data = fit.path(shape.path, on_center, origin, snap=not rotated)
-        return lambda attrs, grow=0.0: f'<path d="{data}" {attrs}{rotation}/>'
+        return lambda attrs, ident, grow=0.0: f'<path id="{ident}" d="{data}" {attrs}{rotation}/>'
     outline_reach = fit.stroke if shape.kind in ("paper", "inverse") else fit.stroke / 2 if shape.kind in _STROKED_KINDS else 0
     center_x, center_y, radius = fit.circle(shape.circle, origin, not rotated, outline_reach)
-    return lambda attrs, grow=0.0: (f'<circle cx="{number(center_x)}" cy="{number(center_y)}" '
-                                    f'r="{number(radius + grow)}" {attrs}{rotation}/>')
+    return lambda attrs, ident, grow=0.0: (f'<circle id="{ident}" cx="{number(center_x)}" cy="{number(center_y)}" '
+                                           f'r="{number(radius + grow)}" {attrs}{rotation}/>')
+
+
+def _layer(layer: str, elements: list[tuple[str, str]]) -> str:
+    """One <g> per rendering layer; elements are (group, svg element) pairs, and consecutive elements of
+    one group nest into a <g> of their own."""
+    lines: list[str] = []
+    for group, members in itertools.groupby(elements, key=lambda element: element[0]):
+        tags = [tag for _, tag in members]
+        lines += [f'<g id="{group}-{layer}">', *tags, "</g>"] if group else tags
+    return "\n".join([f'<g id="{layer}">', *lines, "</g>"]) if lines else ""
 
 
 def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
-    """theme: 'dark' | 'light' | None (= THEME)."""
+    """theme: 'dark' | 'light' | None (= THEME). The layers keep the painting order: halo, outline, fill, details."""
     colors = THEMES[theme or THEME]
     ink, paper, halo = colors["ink"], colors["paper"], colors["halo"]
     stroke, halo_width = fit.stroke, fit.halo
-    placed = [(shape, _place(shape, fit)) for shape in shapes]
-    body = [(shape, tag) for shape, tag in placed if not shape.top and shape.kind != "dot"]
-    details = [(shape, tag) for shape, tag in placed if shape.top or shape.kind == "dot"]
-    out: list[str] = []
+    placed = [(shape, shape.name or f"{shape.kind}-{index}", _place(shape, fit))
+              for index, shape in enumerate(shapes, 1)]
+    body = [item for item in placed if not item[0].top and item[0].kind != "dot"]
+    details = [item for item in placed if item[0].top or item[0].kind == "dot"]
+    halos: list[tuple[str, str]] = []
+    outlines: list[tuple[str, str]] = []
+    covers: list[tuple[str, str]] = []
+    tops: list[tuple[str, str]] = []
     # 1) halo
-    for shape, tag in body:
+    for shape, ident, tag in body:
         if shape.kind == "paper":
             attrs = _stroke(halo, 2 * (stroke + halo_width), halo, shape.sharp)
         elif shape.kind == "inverse":
@@ -124,9 +143,9 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
             attrs = _stroke(halo, stroke + 2 * halo_width, halo, shape.sharp)
         else:
             attrs = _stroke(halo, stroke + 2 * halo_width, sharp=shape.sharp)
-        out.append(tag(attrs))
+        halos.append((shape.group, tag(attrs, f"{ident}-halo")))
     # 2) outline / dark forms
-    for shape, tag in body:
+    for shape, ident, tag in body:
         if shape.kind == "paper":
             attrs = _stroke(ink, 2 * stroke, ink, shape.sharp)
         elif shape.kind == "inverse":
@@ -139,23 +158,24 @@ def render(shapes: list[Shape], fit: Fit, theme: str | None = None) -> str:
             attrs = _stroke(ink, stroke, ink, shape.sharp)
         else:
             attrs = _stroke(ink, stroke, sharp=shape.sharp)
-        out.append(tag(attrs))
+        outlines.append((shape.group, tag(attrs, ident)))
     # 3) light fill on top (eraser for internal intersection lines)
-    for shape, tag in body:
+    for shape, ident, tag in body:
         if shape.kind == "paper":
-            out.append(tag(_flat(paper)))
+            covers.append((shape.group, tag(_flat(paper), f"{ident}-fill")))
     # 4) top details
-    for shape, tag in details:
+    for shape, ident, tag in details:
         if shape.kind == "dot":
-            out.append(tag(_flat(halo), halo_width))
-            out.append(tag(_flat(ink)))
+            tops.append((shape.group, tag(_flat(halo), f"{ident}-halo", halo_width)))
+            tops.append((shape.group, tag(_flat(ink), ident)))
         elif shape.kind == "inverse":
-            out.append(tag(_stroke(paper, stroke, ink, shape.sharp)))
+            tops.append((shape.group, tag(_stroke(paper, stroke, ink, shape.sharp), ident)))
         elif shape.kind == "ink":
-            out.append(tag(_flat(ink)))
+            tops.append((shape.group, tag(_flat(ink), ident)))
         else:
-            out.append(tag(_stroke(ink, stroke, sharp=shape.sharp)))
-    return "\n".join(out)
+            tops.append((shape.group, tag(_stroke(ink, stroke, sharp=shape.sharp), ident)))
+    layers = (("halo", halos), ("outline", outlines), ("fill", covers), ("details", tops))
+    return "\n".join(layer for layer in (_layer(layer_id, elements) for layer_id, elements in layers) if layer)
 
 
 # ============================ GEOMETRY ====================================
@@ -171,18 +191,19 @@ def path_shape(
     top: bool = False,
     transform: tuple[float, float, float] = (0.0, 0.0, 0.0),
     sharp: bool = False,
+    name: str = "",
 ) -> Shape:
-    return Shape(kind, path_data, None, top, transform, sharp)
+    return Shape(kind, path_data, None, top, transform, sharp, name)
 
 
 def _circle(center_x: float, center_y: float, radius: float, kind: str, top: bool = False,
-            transform: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> Shape:
-    return Shape(kind, "", (center_x, center_y, radius), top, transform)
+            transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "") -> Shape:
+    return Shape(kind, "", (center_x, center_y, radius), top, transform, name=name)
 
 
 def _dot(center_x: float, center_y: float, radius: float,
-         transform: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> Shape:
-    return _circle(center_x, center_y, radius, "dot", transform=transform)
+         transform: tuple[float, float, float] = (0.0, 0.0, 0.0), name: str = "center") -> Shape:
+    return _circle(center_x, center_y, radius, "dot", transform=transform, name=name)
 
 
 def _direction(origin: tuple[float, float], target: tuple[float, float]) -> tuple[float, float, float]:
@@ -277,7 +298,7 @@ def arrow() -> list[Shape]:
     concave_lower_edge = "C14 20.4 9.5 22.4 6 24.5"
     bottom_left_corner = "C5 25.1 4 25 4 24"  # tangent to the lower edge; the left edge closes the path
     outline = _path(start, top_left_corner, upper_edge, right_tip, concave_lower_edge, bottom_left_corner, "Z")
-    return [path_shape(outline, "ink")]
+    return [path_shape(outline, "ink", name="pointer")]
 
 
 def arrow_path_selection() -> list[Shape]:
@@ -316,15 +337,15 @@ def text_cursor(vertical: bool = False, area: bool = False) -> list[Shape]:
     beam_x = _TEXT_BEAM_X if area else center
     beam = _path(f"M{beam_x - cap} {near} L{beam_x + cap} {near}", f"M{beam_x} {near} L{beam_x} {far}",
                  f"M{beam_x - cap} {far} L{beam_x + cap} {far}")
-    shapes = [path_shape(beam, "line", sharp=True)]
+    shapes = [path_shape(beam, "line", sharp=True, name="beam")]
     if area:
         tee, side, inset = _TEXT_LETTER_HALF, _TEXT_FRAME_SIDE, SW // 2
         left, top = beam_x + cap + SW + _TEXT_GAP, center - side // 2
         right, bottom, middle = left + side, top + side, left + side // 2
         glyph = _path(f"M{middle - tee} {center - tee} L{middle + tee} {center - tee}",
                       f"M{middle} {center - tee} L{middle} {center + tee}")
-        shapes += [path_shape(rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True),
-                   path_shape(glyph, "line", top=True, sharp=True)]
+        shapes += [path_shape(rectangle(left + inset, top + inset, right - inset, bottom - inset), "paper", sharp=True, name="frame"),
+                   path_shape(glyph, "line", top=True, sharp=True, name="frame-letter")]
     return [replace(shape, path=_turn_path(shape.path)) for shape in shapes] if vertical else shapes
 
 
@@ -333,7 +354,7 @@ _CORNER_MARK = "M28 17 C28 23 25 26 19 26"
 
 def arrow_corner() -> list[Shape]:
     """Pointer with a rounded-corner arc."""
-    return arrow() + [path_shape(_CORNER_MARK, "line")]
+    return arrow() + [path_shape(_CORNER_MARK, "line", name="corner-arc")]
 
 
 _LENS_RADIUS = 8
@@ -358,9 +379,9 @@ def zoom(sign: str) -> list[Shape]:
     vertical_bar = f"M{center} {center - arm} V{center + arm}"
     bars = _path(horizontal_bar, vertical_bar) if sign == "+" else horizontal_bar
     return [
-        _circle(center, center, _LENS_RADIUS, "paper"),
-        path_shape(handle, "ink"),
-        path_shape(bars, "line", top=True, sharp=True),
+        _circle(center, center, _LENS_RADIUS, "paper", name="lens"),
+        path_shape(handle, "ink", name="handle"),
+        path_shape(bars, "line", top=True, sharp=True, name="sign"),
     ]
 
 
@@ -370,8 +391,8 @@ def eyedropper() -> list[Shape]:
     cap = rounded_polygon([(-4.5, -21.5), (4.5, -21.5), (4.5, -17), (-4.5, -17)], 1.2)
     bulb = rectangle(-3.5, -_TOOL_LENGTH, 3.5, -19.5, 3.5)
     return [
-        path_shape(_path(tube, cap), "paper", transform=_TOOL_TRANSFORM),
-        path_shape(bulb, "ink", transform=_TOOL_TRANSFORM),
+        path_shape(_path(tube, cap), "paper", transform=_TOOL_TRANSFORM, name="tube"),
+        path_shape(bulb, "ink", transform=_TOOL_TRANSFORM, name="bulb"),
     ]
 
 
@@ -410,7 +431,7 @@ def _hand(pose: str) -> list[Shape]:
     thumb, tips = _HAND_POSES[pose]
     fingers = [_finger(_FINGERS_LEFT + index * _FINGER_WIDTH, tip_top) for index, tip_top in enumerate(tips)]
     outline = _path(_HAND_START, _HAND_WRIST, _HAND_THUMBS[thumb], *fingers, _HAND_PALM, "Z")
-    return [path_shape(outline, "fill")]
+    return [path_shape(outline, "fill", name="hand")]
 
 
 _NIB_SLIT = 13.14  # slit length from the tip; the dot sits at its end
@@ -424,10 +445,10 @@ def pen_nib() -> list[Shape]:
     right_shoulder = "Q6 -17.97 5.4 -11.79"
     nib = _path(tip, left_flank, left_shoulder, top_edge, right_shoulder, "Z")
     return [
-        path_shape(nib, "paper", transform=_TOOL_TRANSFORM),
-        path_shape(rectangle(-4.2, -_TOOL_LENGTH, 4.2, -19.32, 1.6), "ink", transform=_TOOL_TRANSFORM),
-        path_shape(f"M0 0 V{-_NIB_SLIT}", "line", top=True, transform=_TOOL_TRANSFORM),
-        _circle(0, -_NIB_SLIT, 1.65, "ink", top=True, transform=_TOOL_TRANSFORM),
+        path_shape(nib, "paper", transform=_TOOL_TRANSFORM, name="nib"),
+        path_shape(rectangle(-4.2, -_TOOL_LENGTH, 4.2, -19.32, 1.6), "ink", transform=_TOOL_TRANSFORM, name="cap"),
+        path_shape(f"M0 0 V{-_NIB_SLIT}", "line", top=True, transform=_TOOL_TRANSFORM, name="slit"),
+        _circle(0, -_NIB_SLIT, 1.65, "ink", top=True, transform=_TOOL_TRANSFORM, name="vent"),
     ]
 
 
@@ -443,7 +464,8 @@ def knife() -> list[Shape]:
     blade = _path("M0 0", f"Q-3.17 -5.34 {_KNIFE_SPINE} {seam}", f"L4.31 {seam}", "L3.68 -7.94", "C3.39 -3.48 0 0 0 0", "Z")
     handle = rounded_polygon([(side_a, seam), (side_b, seam), (side_b, -_TOOL_LENGTH), (side_a, -_TOOL_LENGTH)],
                              [0, 0, end_radius, end_radius])
-    return [path_shape(blade, "paper", transform=_TOOL_TRANSFORM), path_shape(handle, "ink", transform=_TOOL_TRANSFORM)]
+    return [path_shape(blade, "paper", transform=_TOOL_TRANSFORM, name="blade"),
+            path_shape(handle, "ink", transform=_TOOL_TRANSFORM, name="handle")]
 
 
 # Magnet: horseshoe and poles sit above the hotspot, matching the other rotated tool cursors.
@@ -466,8 +488,8 @@ def magnet() -> list[Shape]:
                  f"H{inner} V{bend} A{inner} {inner} 0 0 0 {-inner} {bend} V{body_end} Z")
     poles = [rectangle(left, pole_top, left + _MAGNET_ARM, _MAGNET_POLE_Y) for left in (-outer, inner)]
     return [
-        path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True),
-        _dot(*_MAGNET_ORIGIN, _MAGNET_DOT_RADIUS),
+        path_shape(_path(body, *poles), "ink", transform=_MAGNET_TRANSFORM, sharp=True, name="magnet"),
+        _dot(*_MAGNET_ORIGIN, _MAGNET_DOT_RADIUS, name="pivot"),
     ]
 
 
@@ -479,7 +501,7 @@ def crosshair() -> list[Shape]:
     top_arm = f"M{center} {near} V{center - gap}"
     bottom_arm = f"M{center} {center + gap} V{far}"
     return [
-        path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", sharp=True),
+        path_shape(_path(left_arm, right_arm, top_arm, bottom_arm), "line", sharp=True, name="arms"),
         _dot(center, center, _CENTER_DOT_RADIUS),
     ]
 
@@ -489,7 +511,7 @@ def artboard() -> list[Shape]:
     near, far = LINE_INSET, LINE_FAR_EDGE
     outline = f"M{near} 16 H11 M21 16 H{far} V{far} M16 {near} V11 M16 21 V{far} H{far}"
     return [
-        path_shape(outline, "line", sharp=True),
+        path_shape(outline, "line", sharp=True, name="frame"),
         _dot(_CANVAS_CENTER, _CANVAS_CENTER, _CENTER_DOT_RADIUS),
     ]
 
@@ -509,8 +531,8 @@ def crop() -> list[Shape]:
         f"M{center - outer} {center} H{center - inner}",
     )
     return [
-        path_shape(arms, "line", sharp=True),
-        _circle(center, center, _CROP_RING_RADIUS, "paper"),
+        path_shape(arms, "line", sharp=True, name="arms"),
+        _circle(center, center, _CROP_RING_RADIUS, "paper", name="ring"),
         _dot(center, center, _CENTER_DOT_RADIUS),
     ]
 
@@ -529,8 +551,8 @@ def crop_frame() -> list[Shape]:
     bottom_right = f"M{far} {far - arm} V{far} H{far - arm}"
     bottom_left = f"M{near + arm} {far} H{near} V{far - arm}"
     return [
-        path_shape(triangle, "solid"),
-        path_shape(_path(top_right, bottom_right, bottom_left), "line", sharp=True),
+        path_shape(triangle, "solid", name="corner"),
+        path_shape(_path(top_right, bottom_right, bottom_left), "line", sharp=True, name="brackets"),
     ]
 
 
@@ -557,9 +579,9 @@ def note() -> list[Shape]:
     text = _path(f"M{text_start} {text_rows[0]} H{text_end}", f"M{text_start} {text_rows[1]} H{text_end}",
                  f"M{text_start} {text_rows[2]} H{short_end}")
     return [
-        path_shape(bracket, "line", sharp=True),
-        path_shape(sheet, "paper", sharp=True),
-        path_shape(_path(flap, text), "line", top=True, sharp=True),
+        path_shape(bracket, "line", sharp=True, name="bracket"),
+        path_shape(sheet, "paper", sharp=True, name="sheet"),
+        path_shape(_path(flap, text), "line", top=True, sharp=True, name="fold-and-text"),
     ]
 
 
@@ -593,7 +615,8 @@ def _arrow_cross(horizontal: bool, vertical: bool, center: int, reach: int, head
               for axis_x, axis_y in axes]
     heads = [_arrow_head(sign * axis_x, sign * axis_y, center, reach, head_size)
              for axis_x, axis_y in axes for sign in (-1, 1)]
-    return [path_shape(_path(*shafts), "line", sharp=not flat), path_shape(_path(*heads), "ink" if flat else "solid")]
+    return [path_shape(_path(*shafts), "line", sharp=not flat, name="shaft"),
+            path_shape(_path(*heads), "ink" if flat else "solid", name="heads")]
 
 
 def arrows(horizontal: bool, vertical: bool) -> list[Shape]:
@@ -616,9 +639,9 @@ def _scissors(inset: int, length: int, ring_offset: tuple[int, int], ring_radius
     ring = (end[0] + ring_offset[0], end[1] + ring_offset[1])
     blades = _path(f"M{tip[0]} {tip[1]} L{end[0]} {end[1]}", f"M{tip[1]} {tip[0]} L{end[1]} {end[0]}")
     return [
-        path_shape(blades, "line"),
-        _circle(*ring, ring_radius, "paper"),
-        _circle(*ring[::-1], ring_radius, "paper"),
+        path_shape(blades, "line", name="blades"),
+        _circle(*ring, ring_radius, "paper", name="ring-1"),
+        _circle(*ring[::-1], ring_radius, "paper", name="ring-2"),
     ]
 
 
@@ -647,7 +670,7 @@ def magic_wand() -> list[Shape]:
     corners = [(-tip_half, stick_start), (tip_half, stick_start),
                (handle_half, _WAND_LENGTH), (-handle_half, _WAND_LENGTH)]
     stick = rounded_polygon(corners, [tip_half, tip_half, handle_half, handle_half])
-    return [path_shape(_path(star(_WAND_STAR_RADIUS), stick), "ink", transform=(*_WAND_CENTER, -_WAND_TILT))]
+    return [path_shape(_path(star(_WAND_STAR_RADIUS), stick), "ink", transform=(*_WAND_CENTER, -_WAND_TILT), name="wand")]
 
 
 # Fill (paint bucket): the bucket is drawn upright around its own origin and tilted to pour to the left;
@@ -686,9 +709,9 @@ def fill() -> list[Shape]:
                  f"{number(drop_x + _DROP_RADIUS * 0.5)} {number(drop_top + 2.2)} {drop_x} {number(drop_top)}",
                  "Z")
     return [
-        path_shape(handle, "line", transform=transform),
-        path_shape(body, "paper", transform=transform),
-        path_shape(drop, "ink"),
+        path_shape(handle, "line", transform=transform, name="bucket-handle"),
+        path_shape(body, "paper", transform=transform, name="bucket"),
+        path_shape(drop, "ink", name="drop"),
     ]
 
 
@@ -706,50 +729,60 @@ _SCISSORS_BADGE_INSET = -3   # blade tip, relative to BADGE_ORIGIN: the scissors
 _LARGE_BADGE_CANVAS = (40, 40)   # outline, halo and padding of a bulky badge past the badge origin
 BADGES: dict[str, dict[str, list[Shape]]] = {
     "shared": {
-        "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True)],
-        "minus": [path_shape("M-3 0 H3", "line", sharp=True)],
-        "ring": [_circle(0, 0, 3, "line")],
+        "plus": [path_shape("M-3 0 H3 M0 -3 V3", "line", sharp=True, name="plus")],
+        "minus": [path_shape("M-3 0 H3", "line", sharp=True, name="minus")],
+        "ring": [_circle(0, 0, 3, "line", name="ring")],
     },
     "arrow": {
         "scissors": _scissors(_SCISSORS_BADGE_INSET, 4, (0, -2), 1),
         "move": _arrow_cross(True, True, _MOVE_BADGE_CENTER, _MOVE_BADGE_REACH, _MOVE_BADGE_HEAD_SIZE, flat=True),
     },
     "pen": {
-        "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line")],
-        "curve": [path_shape("M-5 3 C-1 3 -1 -3 3 -3", "line")],
-        "caret": [path_shape("M-3 3 L0 -1 L3 3", "line")],
+        "wave": [path_shape("M-3 1 Q-1.5 -2 0 1 T3 1", "line", name="wave")],
+        "curve": [path_shape("M-5 3 C-1 3 -1 -3 3 -3", "line", name="curve")],
+        "caret": [path_shape("M-3 3 L0 -1 L3 3", "line", name="caret")],
     },
 }
 
 # name -> (hotspot on the 32x32 grid, shape factory)
 CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[Shape]]]] = {
+    # arrow
     "arrow": (_ARROW_HOTSPOT, arrow),
     "arrow_path_selection": (_ARROW_HOTSPOT, arrow_path_selection),
     "arrow_direct_selection": (_ARROW_HOTSPOT, arrow_direct_selection),
     "arrow_corner": (_ARROW_HOTSPOT, arrow_corner),
+    # type
     "type_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), text_cursor),
     "type_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: text_cursor(vertical=True)),
     "type_area_horizontal": (_AREA_HOTSPOT, lambda: text_cursor(area=True)),
     "type_area_vertical": (_turn_point(*_AREA_HOTSPOT), lambda: text_cursor(vertical=True, area=True)),
+    # zoom
     "zoom_in": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("+")),
     "zoom_out": ((_LENS_CENTER, _LENS_CENTER), lambda: zoom("-")),
-    "eyedropper": (_TOOL_TIP, eyedropper),
+    # hand
     "grab": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grab")),
     "grabbing": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: _hand("grabbing")),
     "pointer": (_POINTER_HOTSPOT, lambda: _hand("pointer")),
+    # pen
     "pen": (_TOOL_TIP, pen_nib),
-    "knife": (_TOOL_TIP, knife),
-    "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
-    "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
-    "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
+    # eyedropper
+    "eyedropper": (_TOOL_TIP, eyedropper),
+    # crop
     "crop": ((_CANVAS_CENTER, _CANVAS_CENTER), crop),
     "crop_frame": (_CROP_FRAME_HOTSPOT, crop_frame),
-    "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), note),
+    # direction
+    "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=True)),
     "resize_horizontal": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=False)),
     "resize_vertical": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=False, vertical=True)),
-    "move": ((_CANVAS_CENTER, _CANVAS_CENTER), lambda: arrows(horizontal=True, vertical=True)),
+    # selection tools
     "scissors": (_SCISSORS_HOTSPOT, scissors),
     "magic_wand": (_WAND_CENTER, magic_wand),
+    "magnetic_lasso": (_MAGNET_ORIGIN, magnet),
+    "knife": (_TOOL_TIP, knife),
+    # other
+    "crosshair": ((_CANVAS_CENTER, _CANVAS_CENTER), crosshair),
+    "artboard": ((_CANVAS_CENTER, _CANVAS_CENTER), artboard),
+    "note": ((_NOTE_BRACKET_INSET, _NOTE_BRACKET_INSET), note),
     "fill": (_DROP_HOTSPOT, fill),
 }
 
@@ -761,7 +794,8 @@ def add_badged(name: str, base: str, badge: str, canvas: tuple[float, float] | N
     canvas: size in grid units if the badge goes beyond the base's 32x32 grid."""
     hot, base_factory = CURSORS[base]
     shapes = BADGES.get(base, {}).get(badge) or BADGES["shared"][badge]
-    placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0)) for shape in shapes]
+    placed = [replace(shape, transform=(BADGE_ORIGIN, BADGE_ORIGIN, 0), name=f"badge-{shape.name}", group="badge")
+              for shape in shapes]
     CURSORS[name] = (hot, lambda: base_factory() + placed)
     if canvas is not None:
         CANVAS[name] = canvas
