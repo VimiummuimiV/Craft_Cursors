@@ -839,8 +839,8 @@ def _help() -> list[_Shape]:
 _BADGE_HALF_SIZE = 3
 _BADGE_ORIGIN = GRID - PADDING - _LINE_REACH - _BADGE_HALF_SIZE
 _ANCHOR_HALF_SIZE = 2        # square badge: its corner is the closest point to the arrow, so it is smaller than other glyphs
-_SEGMENT_HALF_WIDTH = 3      # curve badge: arch ends from the origin
-_SEGMENT_DOT_RADIUS = 2      # curve badge: end points, half the size of a full anchor dot
+_SEGMENT_HALF_WIDTH = 4      # curve badge: arch ends from the origin
+_SEGMENT_POINT_HALF_SIZE = 2   # curve badge: end point squares
 _SCISSORS_BADGE_LENGTH = 4
 _SCISSORS_BADGE_INSET = -_BLADE_RUN * _SCISSORS_BADGE_LENGTH // 2   # blade tip: the crossing point sits on the origin
 _BADGE_SHIFT = {"arrow": 3, "pen": 2}   # base -> units its badges move right and down from _BADGE_ORIGIN
@@ -853,8 +853,8 @@ _BADGES: dict[str, dict[str, list[_Shape]]] = {
         "segment": [
             _path_shape(f"M{-_SEGMENT_HALF_WIDTH} 2 C{-_SEGMENT_HALF_WIDTH} -4 {_SEGMENT_HALF_WIDTH} -4 {_SEGMENT_HALF_WIDTH} 2",
                         "line", name="segment_curve"),
-            _circle(-_SEGMENT_HALF_WIDTH, 2, _SEGMENT_DOT_RADIUS, "ink", name="segment_start"),
-            _circle(_SEGMENT_HALF_WIDTH, 2, _SEGMENT_DOT_RADIUS, "ink", name="segment_end"),
+            _square(-_SEGMENT_HALF_WIDTH, 2, _SEGMENT_POINT_HALF_SIZE, "ink", name="segment_start"),
+            _square(_SEGMENT_HALF_WIDTH, 2, _SEGMENT_POINT_HALF_SIZE, "ink", name="segment_end"),
         ],
         "not_allowed": _not_allowed_mark(_NOT_ALLOWED_BADGE_RADIUS),
         "help": _help_mark(_HELP_BADGE_HALF_WIDTH),
