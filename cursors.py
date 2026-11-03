@@ -444,14 +444,41 @@ def _pen_nib() -> list[_Shape]:
     ]
 
 
-_PENCIL_TILT = 45
-_PENCIL_HOTSPOT = (_CANVAS_CENTER - 9, _CANVAS_CENTER + 9)
+# Solid (ink) tools drawn upright from the tip: the tip is the hotspot, the far end reaches the same corner as the other tools.
+_INK_TOOL_TIP = (_LINE_INSET, _LINE_FAR_EDGE)
+_INK_TOOL_TRANSFORM = (*_INK_TOOL_TIP, _TOOL_TIP_ANGLE)
+_PENCIL_HALF_WIDTH = 2
+_PENCIL_TIP_LENGTH = 3
+_PENCIL_BODY_END = 25
+_PENCIL_CAP_START = 26
+_PENCIL_CAP_END = 30
 
 
 def _pencil() -> list[_Shape]:
-    outline = _path("M-2 -13 L2 -13 L2 -9 L-2 -9 Z",
-                    "M-2 10 L-2 -8 L2 -8 L2 10 L0 13 Z")
-    return [_path_shape(outline, "ink", transform=(_CANVAS_CENTER, _CANVAS_CENTER, _PENCIL_TILT), name="pencil")]
+    half = _PENCIL_HALF_WIDTH
+    cap = f"M{-half} {-_PENCIL_CAP_END} L{half} {-_PENCIL_CAP_END} L{half} {-_PENCIL_CAP_START} L{-half} {-_PENCIL_CAP_START} Z"
+    body = (f"M0 0 L{-half} {-_PENCIL_TIP_LENGTH} L{-half} {-_PENCIL_BODY_END} "
+            f"L{half} {-_PENCIL_BODY_END} L{half} {-_PENCIL_TIP_LENGTH} Z")
+    return [_path_shape(_path(cap, body), "ink", transform=_INK_TOOL_TRANSFORM, name="pencil")]
+
+
+# Brush: one plain silhouette, a teardrop tuft on a neck, then a handle widening to a round end.
+_BRUSH_HANDLE_HALF_WIDTH = 3
+_BRUSH_HANDLE_END = 27
+
+
+def _brush() -> list[_Shape]:
+    handle, end = _BRUSH_HANDLE_HALF_WIDTH, _BRUSH_HANDLE_END
+    outline = _path("M0 0",
+                    "C1 -3 4 -4 4 -7",
+                    "C4 -10 2 -10 2 -12",
+                    f"L{handle} {-end}",
+                    f"A{handle} {handle} 0 0 0 {-handle} {-end}",
+                    "L-2 -12",
+                    "C-2 -10 -4 -10 -4 -7",
+                    "C-4 -4 -1 -3 0 0",
+                    "Z")
+    return [_path_shape(outline, "ink", transform=_INK_TOOL_TRANSFORM, name="brush")]
 
 
 # Knife: blade (outlined) sits on the handle (solid); the blade tip is the hotspot, the tip is off the handle axis.
@@ -820,7 +847,8 @@ CURSORS: dict[str, tuple[tuple[float, float], Callable[[], list[_Shape]]]] = {
     "pointer": (_POINTER_HOTSPOT, lambda: _hand("pointer")),
     # pen
     "pen": (_TOOL_TIP, _pen_nib),
-    "pencil": (_PENCIL_HOTSPOT, _pencil),
+    "pencil": (_INK_TOOL_TIP, _pencil),
+    "brush": (_INK_TOOL_TIP, _brush),
     # eyedropper
     "eyedropper": (_TOOL_TIP, _eyedropper),
     # crop
